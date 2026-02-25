@@ -1,0 +1,48 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { burnSubtitles } from '@/lib/video-utils';
+import fs from 'fs';
+import path from 'path';
+
+export const maxDuration = 300; // 5 mins max duration
+
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { jobId, srtContent } = body;
+
+        if (!jobId) {
+            return NextResponse.json({ error: 'No jobId provided' }, { status: 400 });
+        }
+
+        const baseTempDir = path.join(process.cwd(), 'public', 'temp');
+        const videoPath = path.join(baseTempDir, `${jobId}.mp4`);
+        const srtPath = path.join(baseTempDir, `${jobId}.srt`);
+        const outputPath = path.join(baseTempDir, `${jobId}_burned.mp4`);
+
+        if (!fs.existsSync(videoPath)) {
+            return NextResponse.json({ error: 'Source video not found' }, { status: 404 });
+        }
+
+        // Write the edited SRT content to the file
+        if (srtContent) {
+            fs.writeFileSync(srtPath, srtContent);
+        } else if (!fs.existsSync(srtPath)) {
+            return NextResponse.json({ error: 'No SRT content provided or found' }, { status: 400 });
+        }
+
+        // Start burning process (this can take time)
+        console.log(`Burning subtitles for ${jobId}...`);
+        await burnSubtitles(videoPath, srtPath, outputPath);
+        console.log(`Finished burning subtitles for ${jobId}. Output saved to ${outputPath}`);
+
+        return NextResponse.json({
+            jobId,
+            status: 'success',
+            outputUrl: `/temp/${jobId}_burned.mp4`
+        });
+
+    } catch (error: any) {
+        console.error("Burn API Error:", error);
+        return NextResponse.json({ error: error.message || 'Internal Error' }, { status: 500 });
+    }
+}
