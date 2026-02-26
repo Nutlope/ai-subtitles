@@ -8,7 +8,7 @@ import EditorView from "./EditorView";
 import ExportView from "./ExportView";
 import Logo from "./Logo";
 import ApiKeyModal from "./ApiKeyModal";
-import { Github, KeyRound, History } from "lucide-react";
+import { Github, KeyRound, History, Check, CircleDot, Circle } from "lucide-react";
 
 export type AppStep = "import" | "settings" | "processing" | "editor" | "export";
 
@@ -21,30 +21,41 @@ export default function SubStudioApp() {
     const [youtubeUrl, setYoutubeUrl] = useState<string>("");
     const [jobId, setJobId] = useState<string>("");
     const [srtContent, setSrtContent] = useState<string>("");
-    const [words, setWords] = useState<any[]>([]);
+    const [words, setWords] = useState<unknown[]>([]);
+    const [stylePreset, setStylePreset] = useState<string>("tiktok");
+
+    const resetApp = () => {
+        setVideoFile(null);
+        setYoutubeUrl("");
+        setJobId("");
+        setSrtContent("");
+        setWords([]);
+        setStylePreset("tiktok");
+        setStep("import");
+    };
 
     return (
         <div className="flex flex-col h-screen w-full bg-background text-foreground overflow-hidden font-sans">
             <header className="h-16 border-b flex items-center px-6 shrink-0 justify-between bg-card text-card-foreground">
-                <div className="flex items-center gap-3">
+                <button onClick={resetApp} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                     <div className="w-8 h-8 flex items-center justify-center">
                         <Logo />
                     </div>
                     <h1 className="font-semibold text-lg tracking-tight">SubStudio</h1>
-                </div>
+                </button>
 
-                {/* Step Indicator - More subtle, centered */}
-                <div className="hidden md:flex items-center space-x-2 text-xs text-muted-foreground font-medium bg-muted/50 px-4 py-1.5 rounded-full border border-border/50">
-                    <StepItem current={step} target="import" label="1. Import" />
-                    <StepDivider />
-                    <StepItem current={step} target="settings" label="2. Settings" />
-                    <StepDivider />
-                    <StepItem current={step} target="processing" label="3. Processing" />
-                    <StepDivider />
-                    <StepItem current={step} target="editor" label="4. Editor" />
-                    <StepDivider />
-                    <StepItem current={step} target="export" label="5. Export" />
-                </div>
+                {/* Step Indicator - Hidden on 'import' view, icon-only on other views */}
+                {step !== "import" && (
+                    <div className="hidden md:flex items-center space-x-3 text-muted-foreground font-medium bg-muted/30 px-4 py-2 rounded-full border border-border/50 shadow-sm animate-in fade-in duration-300">
+                        <StepItem current={step} target="settings" />
+                        <StepDivider />
+                        <StepItem current={step} target="processing" />
+                        <StepDivider />
+                        <StepItem current={step} target="editor" />
+                        <StepDivider />
+                        <StepItem current={step} target="export" />
+                    </div>
+                )}
 
                 {/* Right actions */}
                 <div className="flex items-center gap-2">
@@ -98,6 +109,8 @@ export default function SubStudioApp() {
                         srtContent={srtContent}
                         setSrtContent={setSrtContent}
                         words={words}
+                        stylePreset={stylePreset}
+                        setStylePreset={setStylePreset}
                     />
                 )}
                 {step === "export" && (
@@ -105,6 +118,7 @@ export default function SubStudioApp() {
                         onBack={() => setStep("editor")}
                         jobId={jobId}
                         srtContent={srtContent}
+                        stylePreset={stylePreset}
                     />
                 )}
             </main>
@@ -114,8 +128,8 @@ export default function SubStudioApp() {
     );
 }
 
-function StepItem({ current, target, label }: { current: AppStep; target: AppStep; label: string }) {
-    const stepOrder = ["import", "settings", "processing", "editor", "export"];
+function StepItem({ current, target }: { current: AppStep; target: AppStep }) {
+    const stepOrder = ["settings", "processing", "editor", "export"];
     const currentIndex = stepOrder.indexOf(current);
     const targetIndex = stepOrder.indexOf(target);
 
@@ -123,12 +137,18 @@ function StepItem({ current, target, label }: { current: AppStep; target: AppSte
     const isCurrent = current === target;
 
     return (
-        <span className={`transition-colors duration-200 ${isCurrent ? 'text-foreground font-semibold' : isPast ? 'text-primary opacity-80' : 'text-muted-foreground'}`}>
-            {label}
-        </span>
+        <div className={`flex items-center justify-center transition-all duration-300 ${isCurrent ? 'text-primary scale-110' : isPast ? 'text-foreground' : 'text-muted-foreground'}`}>
+            {isPast ? (
+                <Check className="w-4 h-4" />
+            ) : isCurrent ? (
+                <CircleDot className="w-4 h-4" />
+            ) : (
+                <Circle className="w-4 h-4" />
+            )}
+        </div>
     );
 }
 
 function StepDivider() {
-    return <span className="text-border mx-1">/</span>;
+    return <div className="w-6 h-px bg-border/80" />;
 }

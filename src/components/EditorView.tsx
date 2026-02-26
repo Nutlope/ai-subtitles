@@ -17,6 +17,8 @@ interface EditorViewProps {
     srtContent: string;
     setSrtContent: (srt: string) => void;
     words: any[];
+    stylePreset: string;
+    setStylePreset: (style: string) => void;
 }
 
 function parseTime(timeStr: string): number {
@@ -34,7 +36,7 @@ function formatTime(seconds: number): string {
     return `${hh}:${mm}:${ss},${ms}`;
 }
 
-export default function EditorView({ onNext, jobId, srtContent, setSrtContent, words }: EditorViewProps) {
+export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtContent, words, stylePreset, setStylePreset }: EditorViewProps) {
     const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
     const [isPlaying, setIsPlaying] = useState(false);
     const [showReviewQueue, setShowReviewQueue] = useState(false);
@@ -43,6 +45,13 @@ export default function EditorView({ onNext, jobId, srtContent, setSrtContent, w
     const [duration, setDuration] = useState(0);
 
     const videoRef = useRef<HTMLVideoElement>(null);
+
+    const stylePresets = [
+        { id: "classic", name: "Classic", desc: "Standard bottom text" },
+        { id: "tiktok", name: "TikTok", desc: "Yellow highlights, word-by-word" },
+        { id: "box", name: "Modern Box", desc: "Text with solid background" },
+        { id: "cinematic", name: "Cinematic", desc: "Subtle drop shadow" }
+    ];
 
     // Parse SRT
     useEffect(() => {
@@ -165,6 +174,31 @@ export default function EditorView({ onNext, jobId, srtContent, setSrtContent, w
                         </div>
                     </div>
                 </div>
+
+                {/* Style Selection Below Video */}
+                <div className="p-6 border-t bg-card/50">
+                    <h3 className="font-medium text-foreground text-sm mb-3">Subtitle Style</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {stylePresets.map((preset) => (
+                            <button
+                                key={preset.id}
+                                onClick={() => setStylePreset(preset.id)}
+                                className={cn(
+                                    "p-3 text-left rounded-xl border transition-all",
+                                    stylePreset === preset.id
+                                        ? "border-primary bg-primary/5 shadow-sm"
+                                        : "border-border hover:border-primary/40 hover:bg-muted/30 focus:outline-none"
+                                )}
+                            >
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="font-medium text-xs">{preset.name}</span>
+                                    {stylePreset === preset.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                                </div>
+                                <span className="text-[10px] text-muted-foreground line-clamp-1">{preset.desc}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
 
             {/* Right Panel: Editor */}
@@ -172,6 +206,12 @@ export default function EditorView({ onNext, jobId, srtContent, setSrtContent, w
                 {/* Editor Toolbar */}
                 <div className="h-16 border-b flex items-center justify-between px-4 shrink-0 bg-card">
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={onBack}
+                            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-2"
+                        >
+                            &larr; Back
+                        </button>
                         <button
                             onClick={() => setShowReviewQueue(!showReviewQueue)}
                             className={cn(

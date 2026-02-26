@@ -40,12 +40,37 @@ export async function POST(req: NextRequest) {
             const { youtubeUrl } = body;
 
             if (!youtubeUrl) {
-                return NextResponse.json({ error: 'No youtubeUrl provided' }, { status: 400 });
+                return NextResponse.json({ error: 'No URL provided' }, { status: 400 });
             }
 
-            await downloadYoutubeVideo(youtubeUrl, videoPath);
+            if (youtubeUrl.endsWith('.mp4') || youtubeUrl.includes('.mp4?')) {
+                // Direct MP4 fetching
+                console.log(`Fetching direct URL for job ${jobId}...`);
+                const response = await fetch(youtubeUrl, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch media: ${response.statusText}`);
+                }
 
-            return NextResponse.json({ jobId, status: 'success', type: 'youtube' });
+                const fileStream = fs.createWriteStream(videoPath);
+                if (response.body) {
+                    const reader = response.body.getReader();
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        fileStream.write(Buffer.from(value));
+                    }
+                    fileStream.end();
+                    await new Promise<void>((resolve) => fileStream.on('finish', () => resolve()));
+                } else {
+                    throw new Error("Response body is null");
+                }
+            } else {
+                // Assume YouTube URL
+                console.log(`Downloading YouTube URL for job ${jobId}...`);
+                await downloadYoutubeVideo(youtubeUrl, videoPath);
+            }
+
+            return NextResponse.json({ jobId, status: 'success', type: 'url' });
         } else {
             return NextResponse.json({ error: 'Unsupported Content-Type' }, { status: 415 });
         }

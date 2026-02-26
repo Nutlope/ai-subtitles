@@ -30,6 +30,11 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
         const processVideo = async () => {
             try {
                 const apiKey = localStorage.getItem("substudio_together_api_key") || "";
+                const freeUsed = localStorage.getItem("substudio_free_used") === "true";
+
+                if (!apiKey && freeUsed) {
+                    throw new Error("Free generation used! Please click the Key icon (top right) to enter your Together API Key.");
+                }
 
                 setError(null);
                 setCurrentStage(0);
@@ -55,12 +60,14 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
 
                 if (!processResponse.ok) {
                     const text = await processResponse.text();
+                    let errorMessage = "Failed to ingest video";
                     try {
                         const data = JSON.parse(text);
-                        throw new Error(data.error || "Failed to ingest video");
+                        if (data.error) errorMessage = data.error;
                     } catch (e) {
-                        throw new Error(`Server returned an error: ${processResponse.status} ${processResponse.statusText}. Response: ${text.substring(0, 100)}`);
+                        errorMessage = `Server returned an error: ${processResponse.status} ${processResponse.statusText}. Response: ${text.substring(0, 100)}`;
                     }
+                    throw new Error(errorMessage);
                 }
 
                 const processData = await processResponse.json();
@@ -78,17 +85,27 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
 
                 if (!transcribeResponse.ok) {
                     const text = await transcribeResponse.text();
+                    let errorMessage = "Failed to transcribe audio";
                     try {
                         const data = JSON.parse(text);
-                        throw new Error(data.error || "Failed to transcribe audio");
+                        if (data.error) errorMessage = data.error;
                     } catch (e) {
-                        throw new Error(`Server returned an error: ${transcribeResponse.status} ${transcribeResponse.statusText}. Response: ${text.substring(0, 100)}`);
+                        errorMessage = `Server returned an error: ${transcribeResponse.status} ${transcribeResponse.statusText}. Response: ${text.substring(0, 100)}`;
                     }
+
+                    if (transcribeResponse.status === 401) {
+                        throw new Error("Missing Together AI API Key! Please enter it via the gear icon at the top right, or set TOGETHER_API_KEY in your .env.local file.");
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const transcribeData = await transcribeResponse.json();
                 setSrtContent(transcribeData.srtContent);
                 setWords(transcribeData.words);
+
+                if (!apiKey) {
+                    localStorage.setItem("substudio_free_used", "true");
+                }
 
                 setCurrentStage(4);
 

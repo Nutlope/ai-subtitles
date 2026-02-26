@@ -1,4 +1,4 @@
-import ytdl from '@distube/ytdl-core';
+import play from 'play-dl';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import fs from 'fs';
@@ -15,13 +15,17 @@ export async function downloadYoutubeVideo(url: string, outputPath: string): Pro
     const dir = path.dirname(outputPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    return new Promise((resolve, reject) => {
-        const stream = ytdl(url, { filter: 'audioandvideo', quality: 'highest' });
-        const writeStream = fs.createWriteStream(outputPath);
-        stream.pipe(writeStream);
-        stream.on('error', reject);
-        writeStream.on('error', reject);
-        writeStream.on('finish', resolve);
+    return new Promise(async (resolve, reject) => {
+        try {
+            const streamInfo = await play.stream(url);
+            const writeStream = fs.createWriteStream(outputPath);
+            streamInfo.stream.pipe(writeStream);
+            streamInfo.stream.on('error', reject);
+            writeStream.on('error', reject);
+            writeStream.on('finish', resolve);
+        } catch (error) {
+            reject(error);
+        }
     });
 }
 

@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
         // Request timestamp_granularities="word" for word-level alignment, format "verbose_json"
         const response = await openai.audio.transcriptions.create({
             file: audioStream,
-            model: "whisper-large-v3",
+            model: "openai/whisper-large-v3",
             response_format: "verbose_json",
             timestamp_granularities: ["word"],
         });

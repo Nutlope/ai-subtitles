@@ -3,6 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { UploadCloud, Link as LinkIcon, FileVideo, ArrowRight, Zap, Type, Settings2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+
 interface ImportViewProps {
     onNext: () => void;
     setVideoFile: (file: File | null) => void;
@@ -36,10 +37,12 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
         e.preventDefault();
         if (!url.trim()) return;
 
-        // Basic YouTube URL validation
-        const ytRegex = /^(https?\:\/\/)?(www\.youtube\.com|youtu\.?be)\/.+$/;
-        if (!ytRegex.test(url)) {
-            setError("Please enter a valid YouTube URL");
+        // Basic URL validation
+        const ytRegex = /^(https?\:\/\/)?([a-zA-Z0-9-]+\.)?(youtube\.com|youtu\.?be)\/.+$/;
+        const mp4Regex = /\.mp4(\?.*)?$/i;
+
+        if (!ytRegex.test(url) && !mp4Regex.test(url)) {
+            setError("Please enter a valid YouTube or direct MP4 URL");
             return;
         }
 
@@ -83,7 +86,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
                             <div
                                 {...getRootProps()}
                                 className={cn(
-                                    "border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-300",
+                                    "border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-300 relative z-20",
                                     isDragActive ? "border-primary bg-primary/10 scale-[1.02]" : "border-border hover:border-primary/50 hover:bg-muted/50"
                                 )}
                             >
@@ -124,7 +127,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
                                         </div>
                                         <input
                                             type="text"
-                                            placeholder="Paste YouTube video link..."
+                                            placeholder="Paste YouTube or MP4 link..."
                                             className="w-full pl-12 pr-4 py-3.5 bg-muted/30 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary focus:bg-background transition-all shadow-sm text-foreground font-medium"
                                             value={url}
                                             onChange={(e) => {
@@ -151,17 +154,18 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
                     <button
                         type="button"
                         onClick={() => {
-                            setYoutubeUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+                            setYoutubeUrl("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4");
                             setVideoFile(null);
                             onNext();
                         }}
-                        className="text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-2 transition-colors border border-transparent hover:border-border hover:bg-muted/50 px-4 py-2 rounded-full"
+                        className="text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-2 transition-colors border border-transparent hover:border-border hover:bg-muted/50 px-4 py-2 rounded-full relative z-20"
                     >
                         <FileVideo className="w-4 h-4" />
                         Try with a sample video
                     </button>
                 </div>
             </div>
+
 
             {/* Features Section */}
             <div className="max-w-6xl mx-auto px-6 py-24 relative z-10 border-t border-border/50">

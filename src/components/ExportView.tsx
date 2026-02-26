@@ -5,9 +5,10 @@ interface ExportViewProps {
     onBack: () => void;
     jobId: string;
     srtContent: string;
+    stylePreset: string;
 }
 
-export default function ExportView({ onBack, jobId, srtContent }: ExportViewProps) {
+export default function ExportView({ onBack, jobId, srtContent, stylePreset }: ExportViewProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +47,7 @@ export default function ExportView({ onBack, jobId, srtContent }: ExportViewProp
                 const res = await fetch("/api/burn", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ jobId, srtContent })
+                    body: JSON.stringify({ jobId, srtContent, stylePreset })
                 });
 
                 if (!res.ok) {
@@ -63,9 +64,9 @@ export default function ExportView({ onBack, jobId, srtContent }: ExportViewProp
                 a.click();
                 setDownloading(null);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Export Error:", err);
-            setError(err.message || "An unknown error occurred");
+            setError((err as Error).message || "An unknown error occurred");
             setDownloading(null);
         }
     };
