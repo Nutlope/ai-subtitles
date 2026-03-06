@@ -1,4 +1,4 @@
-import play from 'play-dl';
+import youtubedl from 'youtube-dl-exec';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import fs from 'fs';
@@ -8,25 +8,37 @@ import path from 'path';
 ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 /**
- * Downloads a video from a YouTube URL
+ * Downloads a video from a YouTube URL using yt-dlp (via youtube-dl-exec).
+ * This approach is actively maintained and handles YouTube's evolving protections.
  */
 export async function downloadYoutubeVideo(url: string, outputPath: string): Promise<void> {
-    // Check if output dir exists
+    // Ensure output directory exists
     const dir = path.dirname(outputPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    return new Promise(async (resolve, reject) => {
-        try {
-            const streamInfo = await play.stream(url);
-            const writeStream = fs.createWriteStream(outputPath);
-            streamInfo.stream.pipe(writeStream);
-            streamInfo.stream.on('error', reject);
-            writeStream.on('error', reject);
-            writeStream.on('finish', resolve);
-        } catch (error) {
-            reject(error);
+    try {
+        await youtubedl(url, {
+            output: outputPath,
+            format: 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
+            mergeOutputFormat: 'mp4',
+            noCheckCertificates: true,
+            noWarnings: true,
+            preferFreeFormats: false,
+            addHeader: [
+                'referer:youtube.com',
+                'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            ],
+        });
+
+        // Verify the file was created
+        if (!fs.existsSync(outputPath)) {
+            throw new Error('Download completed but output file was not created');
         }
-    });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('yt-dlp download error:', message);
+        throw new Error(`Failed to download video: ${message}`);
+    }
 }
 
 /**

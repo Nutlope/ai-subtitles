@@ -52,24 +52,57 @@ export async function POST(req: NextRequest) {
 
         // 3. Generate SRT from words
         // We get verbose_json which includes .words array -> [{ word: string, start: number, end: number }]
-        const words = (response as any).words;
+        const words = (response as unknown as Record<string, unknown>).words as Array<{ word: string; start: number; end: number }> | undefined;
         if (!words || !words.length) {
             return NextResponse.json({ error: 'No words found in transcription' }, { status: 400 });
         }
 
-        // Extremely simple SRT generation: bundle every 5-6 words or 2-3 seconds into a subtitle block.
-        // Actually, for word-level animation, users often want 1-2 words per line (TikTok style).
-        // Let's create an SRT with 3 words max per line for dynamic captions.
+        // Generate SRT with longer, more readable subtitle blocks.
+        // Group ~8-10 words or ~4 seconds per block, breaking at sentence boundaries.
+        const MAX_WORDS = 10;
+        const MAX_DURATION = 4.0; // seconds
+        const SENTENCE_ENDINGS = /[.!?;]$/;
+
         let srtContent = "";
         let index = 1;
-        for (let i = 0; i < words.length; i += 3) {
-            const chunk = words.slice(i, i + 3);
+        let chunkStart = 0;
+
+        while (chunkStart < words.length) {
+            let chunkEnd = chunkStart;
+            const startTime = words[chunkStart].start;
+
+            while (chunkEnd < words.length) {
+                const wordCount = chunkEnd - chunkStart + 1;
+                const duration = words[chunkEnd].end - startTime;
+                const word = words[chunkEnd].word.trim();
+                const atSentenceBoundary = SENTENCE_ENDINGS.test(word);
+
+                // If we've hit limits, break (but always include at least 1 word)
+                if (wordCount > 1 && (wordCount >= MAX_WORDS || duration >= MAX_DURATION)) {
+                    // If current word ends a sentence, include it then break
+                    if (atSentenceBoundary) { chunkEnd++; break; }
+                    break;
+                }
+
+                // If this word ends a sentence and we have a reasonable chunk, break after it
+                if (atSentenceBoundary && wordCount >= 4) {
+                    chunkEnd++;
+                    break;
+                }
+
+                chunkEnd++;
+            }
+
+            const chunk = words.slice(chunkStart, chunkEnd);
+            if (chunk.length === 0) break;
+
             const startStr = formatTime(chunk[0].start);
             const endStr = formatTime(chunk[chunk.length - 1].end);
-            const text = chunk.map((w: any) => w.word.trim()).join(" ");
+            const text = chunk.map((w) => w.word.trim()).join(" ");
 
             srtContent += `${index}\n${startStr} --> ${endStr}\n${text}\n\n`;
             index++;
+            chunkStart = chunkEnd;
         }
 
         const srtPath = path.join(baseTempDir, `${jobId}.srt`);
@@ -82,9 +115,9 @@ export async function POST(req: NextRequest) {
             words, // Return raw words so EditorView can provide a custom editor
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Transcription Error:", error);
-        return NextResponse.json({ error: error.message || 'Internal Error' }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Error' }, { status: 500 });
     }
 }
 

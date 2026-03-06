@@ -41,8 +41,8 @@ export async function POST(req: NextRequest) {
             outputUrl: `/temp/${jobId}_burned.mp4`
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Burn API Error:", error);
-        return NextResponse.json({ error: error.message || 'Internal Error' }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Error' }, { status: 500 });
     }
 }

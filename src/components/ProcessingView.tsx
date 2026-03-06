@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2, CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle2, Circle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 interface ProcessingViewProps {
     onNext: () => void;
@@ -8,8 +10,43 @@ interface ProcessingViewProps {
     youtubeUrl: string;
     setJobId: (id: string) => void;
     setSrtContent: (srt: string) => void;
-    setWords: (words: any[]) => void;
+    setWords: (words: unknown[]) => void;
 }
+
+/* ── Animation variants ── */
+const containerVariants = {
+    hidden: {},
+    visible: {
+        transition: { staggerChildren: 0.1, delayChildren: 0.15 },
+    },
+};
+
+const childFadeUp = {
+    hidden: { opacity: 0, y: 16 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+    },
+};
+
+const stageItemVariant = {
+    hidden: { opacity: 0, x: -12 },
+    visible: {
+        opacity: 1,
+        x: 0,
+        transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+    },
+};
+
+const checkPop = {
+    initial: { scale: 0, opacity: 0 },
+    animate: {
+        scale: 1,
+        opacity: 1,
+        transition: { type: "spring", stiffness: 500, damping: 15 },
+    },
+};
 
 export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId, setSrtContent, setWords }: ProcessingViewProps) {
     const [currentStage, setCurrentStage] = useState(0);
@@ -19,7 +56,7 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
     const stages = [
         { id: "ingest", label: "Ingesting video" },
         { id: "extract", label: "Extracting audio" },
-        { id: "transcribe", label: "Transcribing with AI (Together AI)" },
+        { id: "transcribe", label: "Transcribing with AI (Whisper Large v3)" },
         { id: "format", label: "Formatting subtitles" },
     ];
 
@@ -64,7 +101,7 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                     try {
                         const data = JSON.parse(text);
                         if (data.error) errorMessage = data.error;
-                    } catch (e) {
+                    } catch {
                         errorMessage = `Server returned an error: ${processResponse.status} ${processResponse.statusText}. Response: ${text.substring(0, 100)}`;
                     }
                     throw new Error(errorMessage);
@@ -89,12 +126,12 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                     try {
                         const data = JSON.parse(text);
                         if (data.error) errorMessage = data.error;
-                    } catch (e) {
+                    } catch {
                         errorMessage = `Server returned an error: ${transcribeResponse.status} ${transcribeResponse.statusText}. Response: ${text.substring(0, 100)}`;
                     }
 
                     if (transcribeResponse.status === 401) {
-                        throw new Error("Missing Together AI API Key! Please enter it via the gear icon at the top right, or set TOGETHER_API_KEY in your .env.local file.");
+                        throw new Error("Missing Together AI API Key! Please enter it via the key icon at the top right, or set TOGETHER_API_KEY in your .env file.");
                     }
                     throw new Error(errorMessage);
                 }
@@ -109,82 +146,200 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
 
                 setCurrentStage(4);
 
-                // Wait a moment then go to editor
                 setTimeout(() => {
                     onNext();
                 }, 1000);
 
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error("Processing caught error:", err);
-                setError(err.message || "An unknown error occurred");
+                setError(err instanceof Error ? err.message : "An unknown error occurred");
             }
         };
 
         processVideo();
     }, [videoFile, youtubeUrl, setJobId, setSrtContent, setWords, onNext]);
 
+    const isComplete = currentStage >= stages.length;
+    const isProcessing = currentStage < stages.length && !error;
+
     return (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 bg-background">
-            <div className="max-w-md w-full space-y-10 animate-in fade-in zoom-in-95 duration-500">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pt-0 pb-20 bg-background">
+            <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="max-w-md w-full space-y-10"
+            >
 
-                <div className="text-center space-y-4">
-                    <div className="relative mx-auto w-24 h-24 flex items-center justify-center">
-                        {error ? (
-                            <AlertCircle className="w-16 h-16 text-destructive animate-in zoom-in duration-300" />
-                        ) : currentStage < stages.length ? (
-                            <Loader2 className="w-16 h-16 text-primary animate-spin" />
-                        ) : (
-                            <CheckCircle2 className="w-16 h-16 text-green-500 animate-in zoom-in duration-300" />
-                        )}
+                <motion.div variants={childFadeUp} className="text-center space-y-5">
+                    {/* Main Hero Animation — different from stage spinners */}
+                    <div className="relative mx-auto w-28 h-28 flex items-center justify-center">
+                        <AnimatePresence mode="wait">
+                            {error ? (
+                                <motion.div
+                                    key="error"
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                                    className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center"
+                                >
+                                    <AlertCircle className="w-10 h-10 text-destructive" />
+                                </motion.div>
+                            ) : isComplete ? (
+                                <motion.div
+                                    key="complete"
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                                    className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center"
+                                >
+                                    <CheckCircle2 className="w-10 h-10 text-green-500" />
+                                </motion.div>
+                            ) : (
+                                <motion.div
+                                    key="waveform"
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                                    className="flex items-end justify-center gap-[5px] h-16"
+                                    style={{ animation: "glow-pulse 3s ease-in-out infinite" }}
+                                >
+                                    {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                                        <div
+                                            key={i}
+                                            className="w-[5px] rounded-full bg-primary/80"
+                                            style={{
+                                                animation: `waveform 1.2s ease-in-out ${i * 0.1}s infinite alternate`,
+                                                height: '16px',
+                                            }}
+                                        />
+                                    ))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
-                    <h2 className="text-2xl font-bold tracking-tight">
-                        {error ? "Processing Failed" : currentStage < stages.length ? "Processing Video" : "Ready!"}
-                    </h2>
-                    <p className="text-muted-foreground text-lg">
-                        {error
-                            ? error
-                            : currentStage < stages.length
-                                ? "This usually takes a few moments..."
-                                : "Opening editor..."}
-                    </p>
-                </div>
 
-                <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
+                    <div className="space-y-2">
+                        <AnimatePresence mode="wait">
+                            <motion.h2
+                                key={error ? "error" : isComplete ? "done" : "processing"}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -8 }}
+                                transition={{ duration: 0.3 }}
+                                className="text-2xl font-bold tracking-tight"
+                            >
+                                {error ? "Processing Failed" : isComplete ? "Ready!" : "Processing Video"}
+                            </motion.h2>
+                        </AnimatePresence>
+                        <AnimatePresence mode="wait">
+                            <motion.p
+                                key={error ? "err-msg" : isComplete ? "done-msg" : "proc-msg"}
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -6 }}
+                                transition={{ duration: 0.3, delay: 0.05 }}
+                                className="text-muted-foreground text-base max-w-sm mx-auto"
+                            >
+                                {error
+                                    ? error
+                                    : isComplete
+                                        ? "Opening editor..."
+                                        : "Sit tight — our AI is analyzing your video..."}
+                            </motion.p>
+                        </AnimatePresence>
+                    </div>
+
+                    {/* Together AI branding */}
+                    <AnimatePresence>
+                        {isProcessing && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 8 }}
+                                transition={{ duration: 0.4, delay: 0.2 }}
+                                className="flex items-center justify-center gap-2"
+                            >
+                                <span className="text-xs text-muted-foreground/60">Powered by</span>
+                                <Image
+                                    src="/together-ai-new-logo.png"
+                                    alt="Together AI"
+                                    width={80}
+                                    height={18}
+                                    className="opacity-50 object-contain"
+                                    style={{ height: 'auto' }}
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </motion.div>
+
+                <motion.div
+                    variants={childFadeUp}
+                    className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4"
+                >
                     {stages.map((stage, index) => {
                         const isCompleted = currentStage > index;
                         const isCurrent = currentStage === index && !error;
                         const isPending = currentStage < index || (currentStage === index && error);
 
                         return (
-                            <div
+                            <motion.div
                                 key={stage.id}
+                                variants={stageItemVariant}
                                 className={cn(
                                     "flex items-center gap-4 transition-all duration-300",
                                     isPending && "opacity-40"
                                 )}
                             >
                                 <div className="shrink-0 flex items-center justify-center w-6 h-6">
-                                    {isCompleted ? (
-                                        <CheckCircle2 className="w-5 h-5 text-green-500" />
-                                    ) : isCurrent ? (
-                                        <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                                    ) : error && currentStage === index ? (
-                                        <AlertCircle className="w-5 h-5 text-destructive" />
-                                    ) : (
-                                        <Circle className="w-5 h-5 text-muted-foreground border-transparent" />
-                                    )}
+                                    <AnimatePresence mode="wait">
+                                        {isCompleted ? (
+                                            <motion.div
+                                                key="check"
+                                                {...checkPop}
+                                            >
+                                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                            </motion.div>
+                                        ) : isCurrent ? (
+                                            <motion.div
+                                                key="pulse"
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                                                className="w-5 h-5 flex items-center justify-center"
+                                            >
+                                                <div className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_2px] shadow-primary/30" />
+                                            </motion.div>
+                                        ) : error && currentStage === index ? (
+                                            <motion.div
+                                                key="error"
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                                            >
+                                                <AlertCircle className="w-5 h-5 text-destructive" />
+                                            </motion.div>
+                                        ) : (
+                                            <motion.div key="pending">
+                                                <Circle className="w-5 h-5 text-muted-foreground border-transparent" />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                                 <span className={cn(
-                                    "font-medium text-sm sm:text-base",
+                                    "font-medium text-sm sm:text-base transition-colors duration-300",
                                     isCompleted ? "text-foreground" : isCurrent ? "text-primary" : error && currentStage === index ? "text-destructive" : "text-muted-foreground"
                                 )}>
                                     {stage.label}
                                 </span>
-                            </div>
+                            </motion.div>
                         );
                     })}
-                </div>
-            </div>
+                </motion.div>
+            </motion.div>
+
+
         </div>
     );
 }

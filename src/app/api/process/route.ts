@@ -75,8 +75,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unsupported Content-Type' }, { status: 415 });
         }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("API Process Error:", error);
-        return NextResponse.json({ error: error.message || 'Internal Error' }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Error' }, { status: 500 });
     }
 }

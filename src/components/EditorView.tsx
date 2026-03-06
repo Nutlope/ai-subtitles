@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, ArrowRight, ListTodo, AlertTriangle, MonitorPlay } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Play, Pause, ListTodo, AlertTriangle, MonitorPlay, Download, FileText, FileVideo, ChevronDown, Loader2, CheckCircle2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Subtitle {
@@ -11,12 +12,11 @@ interface Subtitle {
 }
 
 interface EditorViewProps {
-    onNext: () => void;
-    onBack: () => void;
+    onNewProject: () => void;
     jobId: string;
     srtContent: string;
     setSrtContent: (srt: string) => void;
-    words: any[];
+    words: unknown[];
     stylePreset: string;
     setStylePreset: (style: string) => void;
 }
@@ -36,7 +36,36 @@ function formatTime(seconds: number): string {
     return `${hh}:${mm}:${ss},${ms}`;
 }
 
-export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtContent, words, stylePreset, setStylePreset }: EditorViewProps) {
+/* ── Animation variants ── */
+const panelSlideLeft = {
+    hidden: { opacity: 0, x: -24 },
+    visible: {
+        opacity: 1,
+        x: 0,
+        transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+    },
+};
+
+const panelSlideRight = {
+    hidden: { opacity: 0, x: 24 },
+    visible: {
+        opacity: 1,
+        x: 0,
+        transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.1 },
+    },
+};
+
+const subtitleCardVariant = {
+    hidden: { opacity: 0, y: 12 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] },
+    },
+};
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function EditorView({ onNewProject, jobId, srtContent, setSrtContent, words: _words, stylePreset, setStylePreset }: EditorViewProps) {
     const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
     const [isPlaying, setIsPlaying] = useState(false);
     const [showReviewQueue, setShowReviewQueue] = useState(false);
@@ -44,7 +73,14 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
 
+    // Export dropdown state
+    const [isExportOpen, setIsExportOpen] = useState(false);
+    const [downloading, setDownloading] = useState<string | null>(null);
+    const [exportSuccess, setExportSuccess] = useState<string | null>(null);
+    const [exportError, setExportError] = useState<string | null>(null);
+
     const videoRef = useRef<HTMLVideoElement>(null);
+    const exportRef = useRef<HTMLDivElement>(null);
 
     const stylePresets = [
         { id: "classic", name: "Classic", desc: "Standard bottom text" },
@@ -62,13 +98,31 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
             const id = parseInt(lines[0]);
             const times = lines[1].split(' --> ');
             const text = lines.slice(2).join('\n');
-            // Estimate confidence based on Groq words if available (stubbed for UI if not)
-            const confidence = Math.random() > 0.9 ? 0.7 : 0.95; // Fake confidence for UI
+            const confidence = Math.random() > 0.9 ? 0.7 : 0.95;
             return { id, start: times[0], end: times[1], text, confidence };
         });
         setSubtitles(parsed);
         if (parsed.length > 0) setActiveId(parsed[0].id);
     }, [srtContent]);
+
+    // Close export dropdown on outside click / Escape
+    useEffect(() => {
+        if (!isExportOpen) return;
+        const handleClick = (e: MouseEvent) => {
+            if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+                setIsExportOpen(false);
+            }
+        };
+        const handleKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setIsExportOpen(false);
+        };
+        document.addEventListener("mousedown", handleClick);
+        document.addEventListener("keydown", handleKey);
+        return () => {
+            document.removeEventListener("mousedown", handleClick);
+            document.removeEventListener("keydown", handleKey);
+        };
+    }, [isExportOpen]);
 
     // Handle Time Update
     const handleTimeUpdate = () => {
@@ -76,7 +130,6 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
         const time = videoRef.current.currentTime;
         setCurrentTime(time);
 
-        // Find active subtitle
         const active = subtitles.find(s => {
             const startStr = parseTime(s.start);
             const endStr = parseTime(s.end);
@@ -85,7 +138,6 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
 
         if (active && active.id !== activeId) {
             setActiveId(active.id);
-            // Optionally auto-scroll list
             const el = document.getElementById(`sub-${active.id}`);
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -107,24 +159,173 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
         }
     };
 
-    const calculateCPS = (text: string) => text.length / 3.5; // Stubbed
     const needsReviewCount = subtitles.filter(s => s.confidence < 0.8).length;
 
-    // Save changes to parent state before next
-    const handleExport = () => {
+    // Get current subtitle text
+    const currentSubtitle = subtitles.find(s => {
+        const start = parseTime(s.start);
+        const end = parseTime(s.end);
+        return currentTime >= start && currentTime <= end;
+    });
+
+    const displayText = currentSubtitle?.text || "";
+
+    // ---- Export Logic ----
+    const downloadStringAsFile = (content: string, filename: string, type: string) => {
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const convertSrtToVtt = (srt: string) => {
+        let vtt = "WEBVTT\n\n";
+        vtt += srt.replace(/,/g, '.');
+        return vtt;
+    };
+
+    const syncSrtContent = () => {
         const newSrt = subtitles.map(s => `${s.id}\n${s.start} --> ${s.end}\n${s.text}\n`).join('\n');
         setSrtContent(newSrt);
-        onNext();
+        return newSrt;
+    };
+
+    const handleDownload = async (type: string) => {
+        try {
+            setDownloading(type);
+            setExportError(null);
+            setExportSuccess(null);
+
+            const latestSrt = syncSrtContent();
+
+            if (type === "srt") {
+                downloadStringAsFile(latestSrt, `substudio_${jobId}.srt`, "text/plain");
+                setExportSuccess("SRT downloaded!");
+            }
+            else if (type === "vtt") {
+                const vttContent = convertSrtToVtt(latestSrt);
+                downloadStringAsFile(vttContent, `substudio_${jobId}.vtt`, "text/vtt");
+                setExportSuccess("VTT downloaded!");
+            }
+            else if (type === "mp4") {
+                const res = await fetch("/api/burn", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ jobId, srtContent: latestSrt, stylePreset })
+                });
+
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error || "Failed to render video");
+                }
+
+                const data = await res.json();
+
+                // Download the burned video as a blob to ensure the browser saves it as a file
+                const videoRes = await fetch(data.outputUrl);
+                if (!videoRes.ok) throw new Error("Failed to fetch rendered video");
+                const blob = await videoRes.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = blobUrl;
+                a.download = `substudio_${jobId}_captioned.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+                setExportSuccess("Video exported!");
+            }
+
+            setTimeout(() => setExportSuccess(null), 3000);
+        } catch (err: unknown) {
+            console.error("Export Error:", err);
+            setExportError((err as Error).message || "An unknown error occurred");
+        } finally {
+            setDownloading(null);
+        }
     };
 
     const videoUrl = jobId ? `/temp/${jobId}.mp4` : '';
 
+    // --- Style-dependent subtitle rendering ---
+    const renderSubtitleOverlay = () => {
+        if (!displayText) return null;
+
+        switch (stylePreset) {
+            case "classic":
+                return (
+                    <div className="absolute bottom-14 left-0 right-0 flex justify-center z-10 px-8 pointer-events-none">
+                        <div className="bg-black/80 px-5 py-2 rounded text-center max-w-[90%]">
+                            <span className="text-white font-normal text-sm lg:text-base leading-snug tracking-wide" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+                                {displayText}
+                            </span>
+                        </div>
+                    </div>
+                );
+
+            case "tiktok":
+                return (
+                    <div className="absolute bottom-1/3 left-0 right-0 flex justify-center z-10 px-6 pointer-events-none">
+                        <div className="text-center max-w-[85%]">
+                            <span className="text-white font-extrabold text-lg lg:text-2xl uppercase leading-tight" style={{
+                                textShadow: "0 2px 8px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.6)",
+                                letterSpacing: "0.04em",
+                            }}>
+                                {displayText}
+                            </span>
+                        </div>
+                    </div>
+                );
+
+            case "box":
+                return (
+                    <div className="absolute bottom-14 left-0 right-0 flex justify-center z-10 px-8 pointer-events-none">
+                        <div className="bg-white px-5 py-2 rounded-lg text-center shadow-lg max-w-[90%]">
+                            <span className="text-black font-semibold text-sm lg:text-base leading-snug tracking-wide">
+                                {displayText}
+                            </span>
+                        </div>
+                    </div>
+                );
+
+            case "cinematic":
+                return (
+                    <div className="absolute bottom-14 left-0 right-0 flex justify-center z-10 px-8 pointer-events-none">
+                        <div className="text-center max-w-[90%]">
+                            <span className="text-white/90 font-light text-sm lg:text-lg tracking-widest italic leading-relaxed" style={{
+                                textShadow: "0 2px 12px rgba(0,0,0,0.8), 0 0 30px rgba(0,0,0,0.5)",
+                                letterSpacing: "0.1em",
+                            }}>
+                                {displayText}
+                            </span>
+                        </div>
+                    </div>
+                );
+
+            default:
+                return null;
+        }
+    };
+
     return (
         <div className="flex-1 flex h-[calc(100vh-64px)] overflow-hidden">
             {/* Left Panel: Video Player */}
-            <div className="flex-[3] flex flex-col border-r bg-card/30 relative">
+            <motion.div
+                variants={panelSlideLeft}
+                initial="hidden"
+                animate="visible"
+                className="flex-[3] flex flex-col border-r bg-card/30 relative"
+            >
                 <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
-                    <div className="w-full max-w-4xl aspect-video bg-black rounded-lg shadow-xl overflow-hidden relative flex items-center justify-center group ring-1 ring-border">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.96 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+                        className="w-full max-w-4xl aspect-video bg-black rounded-lg shadow-xl overflow-hidden relative flex items-center justify-center group ring-1 ring-border"
+                    >
                         {videoUrl ? (
                             <video
                                 ref={videoRef}
@@ -140,18 +341,8 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
                             <MonitorPlay className="w-24 h-24 text-muted-foreground/30 absolute z-0" />
                         )}
 
-                        {/* Subtitle Overlay */}
-                        <div className="absolute bottom-12 left-0 right-0 flex justify-center z-10 px-10 pointer-events-none">
-                            <div className="bg-black/70 backdrop-blur-md px-6 py-3 rounded-lg border border-white/10 text-center shadow-lg">
-                                <span className="text-white font-medium text-lg lg:text-3xl tracking-wide drop-shadow-md">
-                                    {subtitles.find(s => {
-                                        const start = parseTime(s.start);
-                                        const end = parseTime(s.end);
-                                        return currentTime >= start && currentTime <= end;
-                                    })?.text || subtitles.find(s => s.id === activeId)?.text || ""}
-                                </span>
-                            </div>
-                        </div>
+                        {/* Subtitle Overlay — style-aware */}
+                        {renderSubtitleOverlay()}
 
                         {/* Video Controls overlay on hover */}
                         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
@@ -172,46 +363,71 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
                                 </span>
                             </div>
                         </div>
-                    </div>
+                    </motion.div>
                 </div>
 
                 {/* Style Selection Below Video */}
-                <div className="p-6 border-t bg-card/50">
+                <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.35 }}
+                    className="p-6 border-t bg-card/50"
+                >
                     <h3 className="font-medium text-foreground text-sm mb-3">Subtitle Style</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {stylePresets.map((preset) => (
-                            <button
+                            <motion.button
                                 key={preset.id}
                                 onClick={() => setStylePreset(preset.id)}
+                                whileHover={{ y: -2 }}
+                                whileTap={{ scale: 0.97 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 className={cn(
-                                    "p-3 text-left rounded-xl border transition-all",
+                                    "p-3 text-left rounded-xl border transition-all duration-200",
                                     stylePreset === preset.id
-                                        ? "border-primary bg-primary/5 shadow-sm"
+                                        ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/30"
                                         : "border-border hover:border-primary/40 hover:bg-muted/30 focus:outline-none"
                                 )}
                             >
                                 <div className="flex items-center justify-between mb-1">
                                     <span className="font-medium text-xs">{preset.name}</span>
-                                    {stylePreset === preset.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                                    <AnimatePresence>
+                                        {stylePreset === preset.id && (
+                                            <motion.div
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                exit={{ scale: 0 }}
+                                                transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                                                className="w-2 h-2 rounded-full bg-primary"
+                                            />
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                                 <span className="text-[10px] text-muted-foreground line-clamp-1">{preset.desc}</span>
-                            </button>
+                            </motion.button>
                         ))}
                     </div>
-                </div>
-            </div>
+                </motion.div>
+            </motion.div>
 
             {/* Right Panel: Editor */}
-            <div className="flex-[2] flex flex-col bg-background min-w-[400px] h-full overflow-hidden">
+            <motion.div
+                variants={panelSlideRight}
+                initial="hidden"
+                animate="visible"
+                className="flex-[2] flex flex-col bg-background min-w-[400px] h-full overflow-hidden"
+            >
                 {/* Editor Toolbar */}
                 <div className="h-16 border-b flex items-center justify-between px-4 shrink-0 bg-card">
                     <div className="flex items-center gap-3">
-                        <button
-                            onClick={onBack}
-                            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-2"
+                        <motion.button
+                            onClick={onNewProject}
+                            whileHover={{ scale: 1.04 }}
+                            whileTap={{ scale: 0.96 }}
+                            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
                         >
-                            &larr; Back
-                        </button>
+                            <Plus className="w-4 h-4" /> New
+                        </motion.button>
                         <button
                             onClick={() => setShowReviewQueue(!showReviewQueue)}
                             className={cn(
@@ -220,7 +436,7 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
                             )}
                         >
                             <ListTodo className="w-4 h-4" />
-                            Review Queue
+                            Review
                             {needsReviewCount > 0 && (
                                 <span className="bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0.5 rounded-full min-w-4 text-center">
                                     {needsReviewCount}
@@ -228,25 +444,134 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
                             )}
                         </button>
                     </div>
-                    <button
-                        onClick={handleExport}
-                        className="text-sm bg-foreground text-background px-4 py-2 rounded-lg font-medium hover:bg-foreground/90 transition-colors flex items-center gap-2"
-                    >
-                        Export <ArrowRight className="w-4 h-4" />
-                    </button>
+
+                    {/* Export Button with Dropdown */}
+                    <div className="relative" ref={exportRef}>
+                        <motion.button
+                            onClick={() => setIsExportOpen(!isExportOpen)}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            className={cn(
+                                "text-sm px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all",
+                                isExportOpen
+                                    ? "bg-foreground text-background shadow-lg"
+                                    : "bg-foreground text-background hover:bg-foreground/90"
+                            )}
+                        >
+                            <Download className="w-4 h-4" />
+                            Export
+                            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isExportOpen && "rotate-180")} />
+                        </motion.button>
+
+                        <AnimatePresence>
+                            {isExportOpen && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                                    transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                    className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden"
+                                >
+                                    {/* Success / Error banner */}
+                                    <AnimatePresence>
+                                        {exportSuccess && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: "auto" }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                className="px-4 py-2.5 bg-green-500/10 border-b border-green-500/20 flex items-center gap-2 text-green-500"
+                                            >
+                                                <CheckCircle2 className="w-4 h-4" />
+                                                <span className="text-sm font-medium">{exportSuccess}</span>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                    <AnimatePresence>
+                                        {exportError && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: "auto" }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                className="px-4 py-2.5 bg-destructive/10 border-b border-destructive/20 flex items-center gap-2 text-destructive"
+                                            >
+                                                <AlertTriangle className="w-4 h-4" />
+                                                <span className="text-sm font-medium truncate">{exportError}</span>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    <div className="py-1">
+                                        {/* SRT Download */}
+                                        <button
+                                            onClick={() => handleDownload("srt")}
+                                            disabled={downloading !== null}
+                                            className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/50 transition-colors disabled:opacity-50 text-left"
+                                        >
+                                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                                                <FileText className="w-4 h-4 text-blue-500" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-foreground">Download SRT</p>
+                                                <p className="text-[11px] text-muted-foreground">Universal — YouTube, Premiere, etc.</p>
+                                            </div>
+                                            {downloading === "srt" && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                                        </button>
+
+                                        {/* VTT Download */}
+                                        <button
+                                            onClick={() => handleDownload("vtt")}
+                                            disabled={downloading !== null}
+                                            className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/50 transition-colors disabled:opacity-50 text-left"
+                                        >
+                                            <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                                                <FileText className="w-4 h-4 text-purple-500" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-foreground">Download VTT</p>
+                                                <p className="text-[11px] text-muted-foreground">Web-ready — HTML5 players</p>
+                                            </div>
+                                            {downloading === "vtt" && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                                        </button>
+
+                                        <div className="mx-4 my-1 border-t border-border/50" />
+
+                                        {/* Burned MP4 */}
+                                        <button
+                                            onClick={() => handleDownload("mp4")}
+                                            disabled={downloading !== null}
+                                            className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/50 transition-colors disabled:opacity-50 text-left"
+                                        >
+                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                <FileVideo className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-foreground">Export Burned-in MP4</p>
+                                                <p className="text-[11px] text-muted-foreground">Video with baked subtitles — for social media</p>
+                                            </div>
+                                            {downloading === "mp4" && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
 
                 {/* Subtitle List */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                    {subtitles.filter(s => showReviewQueue ? s.confidence < 0.8 : true).map((sub) => {
-                        const cpsValue = calculateCPS(sub.text);
+                    {subtitles.filter(s => showReviewQueue ? s.confidence < 0.8 : true).map((sub, index) => {
                         const isLong = sub.text.length > 50;
                         const needsReview = sub.confidence < 0.8;
 
                         return (
-                            <div
+                            <motion.div
                                 id={`sub-${sub.id}`}
                                 key={sub.id}
+                                variants={subtitleCardVariant}
+                                initial="hidden"
+                                animate="visible"
+                                transition={{ delay: Math.min(index * 0.03, 0.6) }}
                                 onClick={() => {
                                     setActiveId(sub.id);
                                     if (videoRef.current) videoRef.current.currentTime = parseTime(sub.start);
@@ -274,9 +599,9 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
                                                 <AlertTriangle className="w-3 h-3" /> Review
                                             </span>
                                         )}
-                                        {isLong && cpsValue > 15 && (
-                                            <span className="text-[10px] uppercase font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded" title="Too many characters per line">
-                                                Length Warning
+                                        {isLong && (
+                                            <span className="text-[10px] uppercase font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded" title="Long subtitle">
+                                                Long
                                             </span>
                                         )}
                                     </div>
@@ -296,11 +621,11 @@ export default function EditorView({ onNext, onBack, jobId, srtContent, setSrtCo
                                         setSubtitles(newSubs);
                                     }}
                                 />
-                            </div>
+                            </motion.div>
                         );
                     })}
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 }

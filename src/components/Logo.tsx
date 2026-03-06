@@ -7,6 +7,7 @@ export default function Logo({ className }: { className?: string }) {
                 src="/Logo-subtitle.png"
                 alt="SubStudio Logo"
                 fill
+                sizes="100%"
                 className="object-contain"
                 priority
             />
