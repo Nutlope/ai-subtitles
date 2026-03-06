@@ -28,6 +28,17 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon-subtitle.svg",
   },
+  openGraph: {
+    title: "SubStudio",
+    description: "The fastest way to caption your videos — powered by Together AI",
+    images: [{ url: "/sub-studio-OG.png", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SubStudio",
+    description: "The fastest way to caption your videos — powered by Together AI",
+    images: ["/sub-studio-OG.png"],
+  },
 };
 
 export default function RootLayout({
