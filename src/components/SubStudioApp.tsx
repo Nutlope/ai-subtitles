@@ -249,7 +249,7 @@ export default function SubStudioApp() {
                         )}
                     </AnimatePresence>
                     {/* History Dropdown */}
-                    <div className="relative" ref={historyRef}>
+                    <div className="relative flex items-center" ref={historyRef}>
                         <Tooltip label="Upload History">
                             <button
                                 onClick={() => setIsHistoryOpen(!isHistoryOpen)}
