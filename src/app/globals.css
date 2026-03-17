@@ -129,6 +129,12 @@
   }
 }
 
+/* Cursor blink for subtitle simulator typing effect */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 /* Mini equalizer bars for pill badge */
 @keyframes waveBar {
   0%, 100% {

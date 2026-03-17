@@ -249,7 +249,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
 
 
             {/* Pipeline Demo Section */}
-            <div className="max-w-5xl mx-auto px-6 py-24 relative z-10 border-t border-border/50">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 sm:py-28 relative z-10 border-t border-border/50">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
@@ -258,17 +258,23 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
                     className="flex flex-col items-center"
                 >
                     {/* Eyebrow label */}
-                    <span className="font-mono text-[11px] tracking-[0.2em] uppercase text-muted-foreground/40 mb-10">
+                    <span className="font-mono text-[11px] tracking-[0.2em] uppercase text-muted-foreground/40 mb-4">
                         watch it work
                     </span>
+                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-center mb-3">
+                        A full-featured editor
+                    </h2>
+                    <p className="text-muted-foreground text-sm sm:text-base text-center max-w-lg mb-10 sm:mb-14">
+                        Edit, style, review, and export — all in one place.
+                    </p>
 
-                    {/* Simulator */}
-                    <div className="w-full max-w-3xl">
+                    {/* Simulator — full width */}
+                    <div className="w-full">
                         <SubtitleSimulator />
                     </div>
 
                     {/* Stats row */}
-                    <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10 mt-12 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10 mt-10 sm:mt-14 text-sm text-muted-foreground">
                         <div>
                             <span className="text-foreground font-semibold">1.8s</span>
                             {" avg transcription"}
@@ -280,7 +286,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
                         </div>
                         <span className="text-border/60 hidden md:inline">·</span>
                         <div>
-                            <span className="text-foreground font-semibold">100+</span>
+                            <span className="text-foreground font-semibold">6</span>
                             {" style presets"}
                         </div>
                     </div>

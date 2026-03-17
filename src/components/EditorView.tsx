@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, ListTodo, AlertTriangle, MonitorPlay, Download, FileText, FileVideo, ChevronDown, Loader2, CheckCircle2, Plus, Search, Copy, Check } from "lucide-react";
+import { Play, Pause, ListTodo, AlertTriangle, MonitorPlay, Download, FileText, FileVideo, ChevronDown, Loader2, CheckCircle2, Search, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Subtitle {
@@ -539,13 +539,6 @@ export default function EditorView({ onNewProject, jobId, srtContent, setSrtCont
                 <div className="border-b shrink-0 bg-card">
                     <div className="h-14 flex items-center justify-between px-4">
                         <div className="flex items-center gap-2">
-                            <motion.button
-                                onClick={onNewProject}
-                                whileTap={{ scale: 0.97 }}
-                                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
-                            >
-                                <Plus className="w-4 h-4" /> New
-                            </motion.button>
                             <button
                                 onClick={() => setShowReviewQueue(!showReviewQueue)}
                                 className={cn(
