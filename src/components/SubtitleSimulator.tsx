@@ -360,11 +360,11 @@ export default function SubtitleSimulator() {
             </div>
 
             {/* ── Editor layout ── */}
-            <div className="flex flex-col sm:flex-row" style={{ height: 480 }}>
+            <div className="flex flex-col sm:flex-row sm:h-[480px]">
                 {/* Left: Video player area */}
                 <div className="sm:flex-[3] flex flex-col border-b sm:border-b-0 sm:border-r border-border/30">
                     {/* Video viewport */}
-                    <div className="flex-1 bg-black relative flex items-center justify-center overflow-hidden">
+                    <div className="aspect-video sm:aspect-auto sm:flex-1 bg-black relative flex items-center justify-center overflow-hidden">
                         {/* Cinematic gradient background */}
                         <div className="absolute inset-0">
                             <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800/40 to-black" />
@@ -375,6 +375,29 @@ export default function SubtitleSimulator() {
                                     backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E\")",
                                 }}
                             />
+                            {/* Faux video scene — subtle abstract shapes to make area look like a video */}
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-3/4 h-1/2 rounded-xl bg-gradient-to-br from-white/[0.03] to-transparent border border-white/[0.04]" />
+                            </div>
+                            {/* Subtle waveform / audio visualizer lines */}
+                            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-end gap-[3px] opacity-[0.12]">
+                                {[12, 20, 8, 24, 14, 18, 10, 22, 16, 6, 20, 12, 18, 8, 14, 22, 10, 16, 24, 12].map((h, i) => (
+                                    <motion.div
+                                        key={i}
+                                        className="w-[2px] bg-white/60 rounded-full"
+                                        animate={isPlaying ? {
+                                            height: [h, h * 0.4, h * 1.2, h * 0.6, h],
+                                        } : { height: h * 0.3 }}
+                                        transition={isPlaying ? {
+                                            duration: 0.8 + (i % 3) * 0.2,
+                                            repeat: Infinity,
+                                            ease: "easeInOut",
+                                            delay: i * 0.05,
+                                        } : { duration: 0.5 }}
+                                        style={{ height: isPlaying ? h : h * 0.3 }}
+                                    />
+                                ))}
+                            </div>
                         </div>
 
                         {/* Play/Pause button */}
@@ -402,7 +425,7 @@ export default function SubtitleSimulator() {
                         </AnimatePresence>
 
                         {/* Subtitle overlay */}
-                        <div className="absolute bottom-6 left-0 right-0 flex justify-center px-6 z-20">
+                        <div className="absolute bottom-3 sm:bottom-6 left-0 right-0 flex justify-center px-4 sm:px-6 z-20">
                             <AnimatePresence mode="wait">
                                 {subtitleText && isPlaying && (
                                     <motion.div
