@@ -3,40 +3,38 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { Play, Download } from "lucide-react";
 
-const DEMO_WORDS = ["Drop", "a", "video.", "Get", "perfect", "subtitles."];
-
-// ms offset from when scanning begins for each word to appear
-const WORD_DELAYS_MS = [0, 290, 540, 840, 1130, 1450];
-
-// Duration for the playhead to sweep across the waveform
-const SCAN_DURATION = 1700;
-
-// 48 pre-baked bar heights forming a realistic audio-waveform shape
-const BAR_HEIGHTS = [
-    3, 7, 5, 11, 17, 22, 28, 24, 19, 32, 27, 23, 18, 14, 21, 26,
-    31, 29, 23, 17, 14, 19, 24, 29, 34, 31, 25, 21, 16, 12, 19, 25,
-    30, 28, 22, 17, 13, 11, 17, 22, 19, 14, 8, 13, 17, 13, 8, 4,
+/* ── Demo data mimicking the real editor ── */
+const DEMO_SUBS = [
+    { id: 1, time: "00:01 - 00:03", text: "Welcome to SubStudio" },
+    { id: 2, time: "00:03 - 00:06", text: "The fastest way to caption" },
+    { id: 3, time: "00:06 - 00:09", text: "your videos with AI" },
+    { id: 4, time: "00:09 - 00:12", text: "Perfect subtitles, zero effort" },
 ];
 
-// Colors used in imperative DOM updates (keeps React re-renders off the hot path)
-const BAR_ACTIVE = "rgba(250,248,246,0.86)";
-const BAR_INACTIVE = "rgba(255,255,255,0.09)";
+const STYLES = [
+    { id: "classic", name: "Classic" },
+    { id: "tiktok", name: "TikTok" },
+    { id: "box", name: "Box" },
+    { id: "outline", name: "Outline" },
+] as const;
+
+// Cycle: ~10s total per loop
+const PHASE_BOOT = 400;
+const PHASE_CARDS_STAGGER = 150;
+const PHASE_STYLE_DWELL = 2200;
+const PHASE_FADE_OUT = 700;
 
 export default function SubtitleSimulator() {
-    const [visibleWords, setVisibleWords] = useState<number>(-1);
-    const [showDone, setShowDone] = useState(false);
-    const [showSubtitle, setShowSubtitle] = useState(false);
-    const [activeSubWord, setActiveSubWord] = useState(-1);
+    const [activeCard, setActiveCard] = useState(-1);
+    const [cardsVisible, setCardsVisible] = useState(0);
+    const [activeStyle, setActiveStyle] = useState(0);
+    const [subtitleText, setSubtitleText] = useState("");
+    const [progress, setProgress] = useState(0);
     const [cardOpacity, setCardOpacity] = useState(1);
-
-    // Refs for imperative waveform updates (avoids 60fps React re-renders)
-    const barsRef = useRef<(HTMLDivElement | null)[]>(
-        new Array(BAR_HEIGHTS.length).fill(null)
-    );
-    const playheadRef = useRef<HTMLDivElement>(null);
-    const rafRef = useRef<number | null>(null);
     const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+    const rafRef = useRef<number | null>(null);
 
     useEffect(() => {
         const clearAll = () => {
@@ -53,228 +51,263 @@ export default function SubtitleSimulator() {
             timeoutsRef.current.push(id);
         };
 
-        const resetWaveform = () => {
-            barsRef.current.forEach((bar) => {
-                if (bar) bar.style.backgroundColor = BAR_INACTIVE;
-            });
-            if (playheadRef.current) playheadRef.current.style.left = "0%";
-        };
-
         function runCycle() {
             clearAll();
 
-            // Snap-reset state (happens while card is faded out from previous cycle)
-            setVisibleWords(-1);
-            setShowDone(false);
-            setShowSubtitle(false);
-            setActiveSubWord(-1);
-            resetWaveform();
-
-            // Fade the card back in
+            // Reset state
+            setActiveCard(-1);
+            setCardsVisible(0);
+            setActiveStyle(0);
+            setSubtitleText("");
+            setProgress(0);
             setCardOpacity(1);
 
-            // ── Phase 1: scanning starts at 700ms ─────────────────────────────
-            add(() => {
-                const t0 = performance.now();
+            let t = PHASE_BOOT;
 
-                const tick = (now: number) => {
-                    const elapsed = now - t0;
-                    const progress = Math.min(elapsed / SCAN_DURATION, 1);
-                    const threshold = Math.floor(progress * BAR_HEIGHTS.length);
+            // Phase 1: Cards appear one by one
+            DEMO_SUBS.forEach((_, i) => {
+                add(() => setCardsVisible(i + 1), t);
+                t += PHASE_CARDS_STAGGER;
+            });
+            t += 300;
 
-                    if (playheadRef.current) {
-                        playheadRef.current.style.left = `${progress * 100}%`;
-                    }
+            // Phase 2: Cycle through styles, activating cards + showing subtitle text
+            STYLES.forEach((style, si) => {
+                const subIndex = si % DEMO_SUBS.length;
+                add(() => {
+                    setActiveStyle(si);
+                    setActiveCard(subIndex);
+                    setSubtitleText(DEMO_SUBS[subIndex].text);
+                }, t);
 
-                    barsRef.current.forEach((bar, i) => {
-                        if (!bar) return;
-                        bar.style.backgroundColor =
-                            i < threshold ? BAR_ACTIVE : BAR_INACTIVE;
-                    });
+                // Animate progress bar during this style's dwell
+                const startTime = t;
+                add(() => {
+                    const t0 = performance.now();
+                    const tick = (now: number) => {
+                        const elapsed = now - t0;
+                        const p = Math.min(elapsed / PHASE_STYLE_DWELL, 1);
+                        // Map progress to the segment for this style
+                        const segStart = si / STYLES.length;
+                        const segEnd = (si + 1) / STYLES.length;
+                        setProgress(segStart + p * (segEnd - segStart));
+                        if (p < 1) rafRef.current = requestAnimationFrame(tick);
+                    };
+                    rafRef.current = requestAnimationFrame(tick);
+                }, startTime);
 
-                    if (progress < 1) {
-                        rafRef.current = requestAnimationFrame(tick);
-                    }
-                };
+                t += PHASE_STYLE_DWELL;
+            });
 
-                rafRef.current = requestAnimationFrame(tick);
+            // Phase 3: Fade out
+            add(() => setCardOpacity(0), t);
+            t += PHASE_FADE_OUT + 100;
 
-                // Reveal transcript tokens as the playhead sweeps
-                WORD_DELAYS_MS.forEach((delay, i) => {
-                    add(() => setVisibleWords(i), delay);
-                });
-            }, 700);
-
-            // ── Phase 2: done badge (300ms after scan finishes) ───────────────
-            add(() => setShowDone(true), 2700);
-
-            // ── Phase 3: subtitle output with word-by-word highlight ──────────
-            add(() => {
-                setShowSubtitle(true);
-                DEMO_WORDS.forEach((_, i) => {
-                    add(() => setActiveSubWord(i), 500 + i * 400);
-                });
-            }, 3650);
-
-            // ── Phase 4: fade out ─────────────────────────────────────────────
-            add(() => setCardOpacity(0), 6900);
-
-            // ── Phase 5: reset + restart ──────────────────────────────────────
-            // Card is fully invisible by now (700ms fade → done at 7600ms)
-            add(() => runCycle(), 7700);
+            // Phase 4: Restart
+            add(() => runCycle(), t);
         }
 
         runCycle();
         return clearAll;
     }, []);
 
+    const currentStyle = STYLES[activeStyle];
+
+    // Render subtitle with the current style
+    const renderSubtitle = () => {
+        if (!subtitleText) return null;
+
+        switch (currentStyle.id) {
+            case "classic":
+                return (
+                    <div className="bg-black/80 px-3 py-1.5 rounded text-center">
+                        <span className="text-white text-[11px] font-normal leading-snug" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+                            {subtitleText}
+                        </span>
+                    </div>
+                );
+            case "tiktok":
+                return (
+                    <div className="text-center">
+                        <span className="text-white font-extrabold text-xs uppercase leading-tight" style={{
+                            textShadow: "0 1px 6px rgba(0,0,0,0.8), 0 0 3px rgba(0,0,0,0.6)",
+                            letterSpacing: "0.04em",
+                        }}>
+                            {subtitleText}
+                        </span>
+                    </div>
+                );
+            case "box":
+                return (
+                    <div className="bg-white px-3 py-1.5 rounded-md text-center shadow-sm">
+                        <span className="text-black font-semibold text-[11px] leading-snug">
+                            {subtitleText}
+                        </span>
+                    </div>
+                );
+            case "outline":
+                return (
+                    <div className="text-center">
+                        <span className="text-white font-bold text-[11px] leading-snug" style={{
+                            WebkitTextStroke: "1px black",
+                            paintOrder: "stroke fill",
+                            textShadow: "0 1px 3px rgba(0,0,0,0.5)",
+                        }}>
+                            {subtitleText}
+                        </span>
+                    </div>
+                );
+            default:
+                return null;
+        }
+    };
+
     return (
         <div
-            className="bg-card border border-border/70 rounded-2xl overflow-hidden"
-            style={{
-                opacity: cardOpacity,
-                transition: "opacity 700ms ease-in-out",
-            }}
+            className="bg-card border border-border/70 rounded-2xl overflow-hidden shadow-2xl"
+            style={{ opacity: cardOpacity, transition: "opacity 700ms ease-in-out" }}
         >
-            {/* ── Title bar ─────────────────────────────────────────────────── */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-border/50">
+            {/* ── Nav bar (mirrors real app) ── */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50 bg-card/80">
+                <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center">
+                        <svg viewBox="0 0 24 24" className="w-3 h-3 text-primary" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                        </svg>
+                    </div>
+                    <span className="text-[11px] font-medium text-foreground tracking-tight">SubStudio</span>
+                    <span className="text-border/60 mx-0.5">|</span>
+                    <span className="text-[10px] text-muted-foreground/40 font-mono">demo.mp4</span>
+                </div>
                 <div className="flex items-center gap-1.5">
-                    {/* macOS-style traffic lights */}
-                    <div className="w-[10px] h-[10px] rounded-full bg-[#ff5f57]/80" />
-                    <div className="w-[10px] h-[10px] rounded-full bg-[#febc2e]/80" />
-                    <div className="w-[10px] h-[10px] rounded-full bg-[#28c840]/80" />
-                    <span className="font-mono text-[11px] text-muted-foreground/40 ml-3 tracking-wide select-none">
-                        my-video.mp4
-                    </span>
-                </div>
-
-                <AnimatePresence mode="wait">
-                    {showDone ? (
-                        <motion.div
-                            key="done"
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.8 }}
-                            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] as const }}
-                            className="flex items-center gap-1.5 font-mono text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full"
-                        >
-                            ✓ 1.8s
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="processing"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground/40"
-                        >
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500/60 animate-pulse" />
-                            processing
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-
-            {/* ── Waveform ───────────────────────────────────────────────────── */}
-            <div className="px-6 pt-5 pb-5 border-b border-border/40">
-                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/30 block mb-3">
-                    audio
-                </span>
-                <div className="relative flex items-end gap-[3px] h-9 overflow-hidden">
-                    {BAR_HEIGHTS.map((height, i) => (
-                        <div
-                            key={i}
-                            ref={(el: HTMLDivElement | null) => {
-                                barsRef.current[i] = el;
-                            }}
-                            className="w-[3px] rounded-full flex-shrink-0"
-                            style={{
-                                height: `${height}px`,
-                                backgroundColor: BAR_INACTIVE,
-                            }}
-                        />
-                    ))}
-
-                    {/* Playhead — a soft vertical gradient line */}
-                    <div
-                        ref={playheadRef}
-                        className="absolute inset-y-0 w-px pointer-events-none"
-                        style={{
-                            left: "0%",
-                            background:
-                                "linear-gradient(to bottom, transparent 0%, rgba(250,248,246,0.5) 20%, rgba(250,248,246,0.5) 80%, transparent 100%)",
-                        }}
-                    />
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-foreground text-background text-[9px] font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-background/60" />
+                        Edit
+                    </div>
                 </div>
             </div>
 
-            {/* ── Transcript tokens ──────────────────────────────────────────── */}
-            <div className="px-6 py-4 border-b border-border/40">
-                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/30 block mb-3">
-                    transcript
-                </span>
-                <div className="flex flex-wrap gap-2 min-h-[30px] items-center">
-                    <AnimatePresence>
-                        {DEMO_WORDS.map((word, i) =>
-                            visibleWords >= i ? (
-                                <motion.span
-                                    key={i}
-                                    initial={{ opacity: 0, y: 8, scale: 0.86 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    transition={{
-                                        duration: 0.26,
-                                        ease: [0.22, 1, 0.36, 1] as const,
-                                    }}
-                                    className="font-mono text-xs px-2.5 py-1 rounded-lg bg-muted/50 text-muted-foreground border border-border/60"
+            {/* ── Editor layout ── */}
+            <div className="flex" style={{ height: 260 }}>
+                {/* Left: Video player area */}
+                <div className="flex-[3] flex flex-col border-r border-border/40">
+                    {/* Video viewport */}
+                    <div className="flex-1 bg-black/90 relative flex items-center justify-center overflow-hidden">
+                        {/* Fake video gradient */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800/50 to-black" />
+
+                        {/* Play button hint */}
+                        <AnimatePresence>
+                            {!subtitleText && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="relative z-10 w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center"
                                 >
-                                    {word}
-                                </motion.span>
-                            ) : null
-                        )}
-                    </AnimatePresence>
-                </div>
-            </div>
+                                    <Play className="w-3.5 h-3.5 text-white/60 ml-0.5" fill="currentColor" />
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
-            {/* ── Subtitle output ────────────────────────────────────────────── */}
-            <div className="px-6 py-6 flex items-center justify-center min-h-[92px]">
-                <AnimatePresence mode="wait">
-                    {showSubtitle ? (
-                        <motion.div
-                            key="output"
-                            initial={{ opacity: 0, y: 14, scale: 0.96 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] as const }}
-                            className="inline-flex flex-wrap justify-center gap-x-[0.32em] gap-y-1 bg-black/65 rounded-2xl px-8 py-4 border border-white/[0.06]"
-                        >
-                            {DEMO_WORDS.map((word, i) => (
-                                <span
-                                    key={i}
+                        {/* Subtitle overlay */}
+                        <div className="absolute bottom-4 left-0 right-0 flex justify-center px-4 z-20">
+                            <AnimatePresence mode="wait">
+                                {subtitleText && (
+                                    <motion.div
+                                        key={`${currentStyle.id}-${subtitleText}`}
+                                        initial={{ opacity: 0, y: 6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -4 }}
+                                        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] as const }}
+                                    >
+                                        {renderSubtitle()}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Progress bar at bottom of video */}
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/5">
+                            <div
+                                className="h-full bg-primary/70 transition-none"
+                                style={{ width: `${progress * 100}%` }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Style selector bar */}
+                    <div className="px-3 py-2 bg-card/50 border-t border-border/30">
+                        <div className="flex gap-1.5">
+                            {STYLES.map((style, i) => (
+                                <div
+                                    key={style.id}
                                     className={cn(
-                                        "text-xl md:text-2xl font-bold tracking-tight transition-colors duration-200",
-                                        i === activeSubWord
-                                            ? "text-amber-200 [filter:drop-shadow(0_0_10px_rgba(251,191,36,0.35))]"
-                                            : "text-white/38"
+                                        "px-2 py-1 rounded-md text-[9px] font-medium transition-all duration-300 border",
+                                        i === activeStyle
+                                            ? "border-primary/40 bg-primary/5 text-foreground"
+                                            : "border-transparent text-muted-foreground/50"
                                     )}
                                 >
-                                    {word}
-                                </span>
+                                    {style.name}
+                                </div>
                             ))}
-                        </motion.div>
-                    ) : (
-                        <motion.p
-                            key="waiting"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.3 }}
-                            className="font-mono text-[11px] tracking-widest text-muted-foreground/25 uppercase select-none"
-                        >
-                            subtitle output
-                        </motion.p>
-                    )}
-                </AnimatePresence>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right: Subtitle cards */}
+                <div className="flex-[2] flex flex-col bg-background/50 min-w-0">
+                    {/* Mini toolbar */}
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-border/40 bg-card/50">
+                        <span className="text-[9px] font-medium text-muted-foreground">Subtitles</span>
+                        <div className="flex items-center gap-1">
+                            <div className="px-1.5 py-0.5 rounded text-[8px] font-bold text-muted-foreground/50 bg-muted/30">
+                                {DEMO_SUBS.length}
+                            </div>
+                            <Download className="w-3 h-3 text-muted-foreground/30" />
+                        </div>
+                    </div>
+
+                    {/* Cards */}
+                    <div className="flex-1 overflow-hidden p-2 space-y-1.5">
+                        {DEMO_SUBS.map((sub, i) => (
+                            <AnimatePresence key={sub.id}>
+                                {i < cardsVisible && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        transition={{
+                                            duration: 0.3,
+                                            ease: [0.22, 1, 0.36, 1] as const,
+                                        }}
+                                        className={cn(
+                                            "px-2.5 py-2 rounded-lg border transition-all duration-300",
+                                            i === activeCard
+                                                ? "border-primary/40 bg-primary/5"
+                                                : "border-border/40 bg-card/30"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                            <span className="text-[8px] font-mono px-1 py-px rounded bg-muted/50 text-muted-foreground/50">
+                                                {sub.id}
+                                            </span>
+                                            <span className="text-[8px] text-muted-foreground/40 font-mono">
+                                                {sub.time}
+                                            </span>
+                                        </div>
+                                        <p className={cn(
+                                            "text-[10px] leading-relaxed transition-colors duration-300",
+                                            i === activeCard ? "text-foreground" : "text-muted-foreground/60"
+                                        )}>
+                                            {sub.text}
+                                        </p>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        ))}
+                    </div>
+                </div>
             </div>
         </div>
     );
