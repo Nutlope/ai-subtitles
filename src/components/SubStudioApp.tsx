@@ -336,7 +336,7 @@ export default function SubStudioApp() {
 
                     <Tooltip label="Star on GitHub">
                         <a
-                            href="https://github.com/togethercomputer/substudio"
+                            href="https://github.com/Luffixos/ai-subtitles"
                             target="_blank"
                             rel="noreferrer"
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/60 bg-muted/30 hover:bg-muted/60 hover:border-border transition-all duration-200 group"

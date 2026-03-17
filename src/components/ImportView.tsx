@@ -397,12 +397,11 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
                     </p>
                     <motion.button
                         onClick={scrollToHero}
-                        whileHover={{ scale: 1.03 }}
                         whileTap={{ scale: 0.98 }}
-                        className="group inline-flex items-center gap-2.5 bg-foreground text-background px-7 py-3.5 rounded-full font-semibold text-sm shadow-lg hover:shadow-xl transition-shadow duration-300"
+                        className="inline-flex items-center gap-2.5 bg-foreground text-background px-7 py-3.5 rounded-full font-semibold text-sm shadow-lg hover:shadow-xl transition-shadow duration-300"
                     >
                         Get Started — Free
-                        <ArrowUp className="w-4 h-4 transition-transform duration-300 group-hover:-translate-y-0.5" />
+                        <ArrowUp className="w-4 h-4" />
                     </motion.button>
                 </motion.div>
             </div>
@@ -431,7 +430,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
                         {/* Center / Right — Links */}
                         <div className="flex items-center gap-5">
                             <a
-                                href="https://github.com/togethercomputer/substudio"
+                                href="https://github.com/Luffixos/ai-subtitles"
                                 target="_blank"
                                 rel="noreferrer"
                                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
