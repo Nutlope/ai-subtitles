@@ -310,8 +310,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
                                 whileInView={{ opacity: 1, y: 0, scale: 1 }}
                                 viewport={{ once: true, margin: "-40px" }}
                                 transition={{ duration: 0.5, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                                whileHover={{ y: -4 }}
-                                className="group relative overflow-hidden rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-5 transition-all duration-300 hover:border-border/80 hover:shadow-lg hover:shadow-black/20"
+                                className="group relative overflow-hidden rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-5 transition-all duration-500 hover:border-border hover:shadow-xl hover:shadow-black/25"
                             >
                                 {/* Gradient accent */}
                                 <div className={cn(

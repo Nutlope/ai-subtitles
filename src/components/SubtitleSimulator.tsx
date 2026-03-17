@@ -13,7 +13,7 @@ const DEMO_SUBS = [
     { id: 3, start: "00:00:06", end: "00:00:09", text: "your videos with AI", confidence: 0.72 },
     { id: 4, start: "00:00:09", end: "00:00:12", text: "Perfect subtitles, zero effort", confidence: 0.99 },
     { id: 5, start: "00:00:12", end: "00:00:15", text: "Export in any format you need", confidence: 0.91 },
-    { id: 6, start: "00:00:15", end: "00:00:18", text: "Powered by Whisper Large v3", confidence: 0.88 },
+    { id: 6, start: "00:00:15", end: "00:00:18", text: "Powered by Together AI", confidence: 0.88 },
 ];
 
 const STYLES = [
@@ -50,10 +50,37 @@ export default function SubtitleSimulator() {
     // Export animation state
     const [showExport, setShowExport] = useState(false);
     const [exportChecks, setExportChecks] = useState<number[]>([]);
+    const exportClickedRef = useRef(false);
 
     const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
     const rafRef = useRef<number | null>(null);
     const cycleRef = useRef(0);
+
+    // Manual export button click handler
+    const handleExportClick = () => {
+        if (showExport) {
+            setShowExport(false);
+            setExportChecks([]);
+            return;
+        }
+        exportClickedRef.current = true;
+        setShowExport(true);
+        setExportChecks([]);
+        // Stagger checkmarks
+        EXPORT_FORMATS.forEach((_, i) => {
+            const id = setTimeout(() => {
+                setExportChecks(prev => [...prev, i]);
+            }, 400 + i * 500);
+            timeoutsRef.current.push(id);
+        });
+        // Auto-dismiss after 3s
+        const dismissId = setTimeout(() => {
+            setShowExport(false);
+            setExportChecks([]);
+            exportClickedRef.current = false;
+        }, 3200);
+        timeoutsRef.current.push(dismissId);
+    };
 
     useEffect(() => {
         const clearAll = () => {
@@ -384,78 +411,7 @@ export default function SubtitleSimulator() {
                             </AnimatePresence>
                         </div>
 
-                        {/* Export animation overlay */}
-                        <AnimatePresence>
-                            {showExport && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                    className="absolute inset-0 z-30 flex items-center justify-center"
-                                >
-                                    {/* Backdrop */}
-                                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-                                    {/* Export card */}
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                                        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                                        className="relative z-10 w-[85%] max-w-[260px]"
-                                    >
-                                        <div className="bg-card/95 backdrop-blur-xl border border-border/60 rounded-xl shadow-2xl overflow-hidden">
-                                            {/* Header */}
-                                            <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
-                                                <div className="w-6 h-6 rounded-lg bg-foreground/10 flex items-center justify-center">
-                                                    <Download className="w-3.5 h-3.5 text-foreground/70" />
-                                                </div>
-                                                <span className="text-xs font-semibold text-foreground">Export Subtitles</span>
-                                            </div>
-
-                                            {/* Format list */}
-                                            <div className="p-2 space-y-1">
-                                                {EXPORT_FORMATS.map((fmt, i) => (
-                                                    <motion.div
-                                                        key={fmt.ext}
-                                                        initial={{ opacity: 0, x: -10 }}
-                                                        animate={{ opacity: 1, x: 0 }}
-                                                        transition={{ delay: i * 0.15, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                                                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/30 transition-colors"
-                                                    >
-                                                        <div className={cn("w-7 h-7 rounded-md flex items-center justify-center shrink-0", fmt.bg)}>
-                                                            {fmt.ext === ".MP4" ? (
-                                                                <FileVideo className={cn("w-3.5 h-3.5", fmt.color)} />
-                                                            ) : (
-                                                                <FileText className={cn("w-3.5 h-3.5", fmt.color)} />
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-[11px] font-semibold text-foreground">{fmt.ext}</p>
-                                                            <p className="text-[9px] text-muted-foreground/50">{fmt.label}</p>
-                                                        </div>
-                                                        {/* Checkmark */}
-                                                        <AnimatePresence>
-                                                            {exportChecks.includes(i) && (
-                                                                <motion.div
-                                                                    initial={{ scale: 0, rotate: -90 }}
-                                                                    animate={{ scale: 1, rotate: 0 }}
-                                                                    transition={{ type: "spring", stiffness: 500, damping: 20 }}
-                                                                    className="w-5 h-5 rounded-full bg-emerald-500/15 flex items-center justify-center"
-                                                                >
-                                                                    <Check className="w-3 h-3 text-emerald-400" />
-                                                                </motion.div>
-                                                            )}
-                                                        </AnimatePresence>
-                                                    </motion.div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
 
                         {/* Video controls bar */}
                         <div className="absolute bottom-0 left-0 right-0 z-30">
@@ -530,12 +486,76 @@ export default function SubtitleSimulator() {
                                     {DEMO_SUBS.length} subs · 24 words
                                 </span>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-foreground text-background text-[9px] sm:text-[10px] font-semibold">
+                            <div className="flex items-center gap-1.5 relative">
+                                <div
+                                    className="flex items-center gap-1 px-2 py-1 rounded-md bg-foreground text-background text-[9px] sm:text-[10px] font-semibold cursor-pointer hover:bg-foreground/90 transition-colors"
+                                    onClick={handleExportClick}
+                                >
                                     <Download className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                                     Export
-                                    <ChevronDown className="w-2 h-2 sm:w-2.5 sm:h-2.5 opacity-60" />
+                                    <ChevronDown className={cn("w-2 h-2 sm:w-2.5 sm:h-2.5 opacity-60 transition-transform duration-200", showExport && "rotate-180")} />
                                 </div>
+
+                                {/* Export dropdown — anchored to Export button */}
+                                <AnimatePresence>
+                                    {showExport && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                                            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                            className="absolute right-0 top-full mt-1.5 z-50 w-56"
+                                        >
+                                            <div className="bg-card/95 backdrop-blur-xl border border-border/60 rounded-xl shadow-2xl overflow-hidden">
+                                                {/* Header */}
+                                                <div className="px-3 py-2.5 border-b border-border/30 flex items-center gap-2">
+                                                    <div className="w-5 h-5 rounded-md bg-foreground/10 flex items-center justify-center">
+                                                        <Download className="w-3 h-3 text-foreground/70" />
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-foreground">Export Subtitles</span>
+                                                </div>
+
+                                                {/* Format list */}
+                                                <div className="p-1.5 space-y-0.5">
+                                                    {EXPORT_FORMATS.map((fmt, i) => (
+                                                        <motion.div
+                                                            key={fmt.ext}
+                                                            initial={{ opacity: 0, x: -8 }}
+                                                            animate={{ opacity: 1, x: 0 }}
+                                                            transition={{ delay: i * 0.1, duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                                                            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer"
+                                                        >
+                                                            <div className={cn("w-6 h-6 rounded-md flex items-center justify-center shrink-0", fmt.bg)}>
+                                                                {fmt.ext === ".MP4" ? (
+                                                                    <FileVideo className={cn("w-3 h-3", fmt.color)} />
+                                                                ) : (
+                                                                    <FileText className={cn("w-3 h-3", fmt.color)} />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-[10px] font-semibold text-foreground">{fmt.ext}</p>
+                                                                <p className="text-[8px] text-muted-foreground/50">{fmt.label}</p>
+                                                            </div>
+                                                            {/* Checkmark */}
+                                                            <AnimatePresence>
+                                                                {exportChecks.includes(i) && (
+                                                                    <motion.div
+                                                                        initial={{ scale: 0, rotate: -90 }}
+                                                                        animate={{ scale: 1, rotate: 0 }}
+                                                                        transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                                                                        className="w-4 h-4 rounded-full bg-emerald-500/15 flex items-center justify-center"
+                                                                    >
+                                                                        <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                                                    </motion.div>
+                                                                )}
+                                                            </AnimatePresence>
+                                                        </motion.div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </div>
 
