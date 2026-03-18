@@ -177,7 +177,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
                             />
                         ))}
                     </div>
-                    <span>Groq · Whisper · word-level precision</span>
+                    <span>Powered by Together AI x Whisper</span>
                 </motion.div>
 
                 {/* Hero text — staggered headline entrance */}
@@ -299,7 +299,8 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl }: Impo
                     <motion.button
                         type="button"
                         onClick={() => {
-                            setYoutubeUrl("https://www.youtube.com/watch?v=kBX5WH9b4M4");
+                            const sampleUrl = `${window.location.origin}/sample-demo.mp4`;
+                            setYoutubeUrl(sampleUrl);
                             setVideoFile(null);
                             onNext();
                         }}

@@ -23,12 +23,12 @@ export interface HistoryEntry {
 
 const TOGETHER_TIPS = [
     "Powered by Together AI — the fastest inference cloud",
-    "Together AI's Whisper v3 is 15× faster than OpenAI's",
-    "50+ languages supported with auto-detection",
-    "Word-level timestamps for precise subtitle alignment",
-    "Process audio files over 1GB without manual chunking",
-    "Optimized with smart voice activity detection",
-    "Together AI — Build and scale generative AI",
+    "Together AI runs Whisper Large v3 up to 15× faster than alternatives",
+    "Together AI — 200+ open-source models, one simple API",
+    "Build with Llama, Mixtral, Whisper & more on Together AI",
+    "From prototype to production at any scale — together.ai",
+    "The leading cloud platform for open-source AI inference",
+    "Together AI — Build, fine-tune, and scale generative AI",
 ];
 
 /* ── Framer Motion page transition variants ── */
