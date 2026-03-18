@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, ListTodo, AlertTriangle, MonitorPlay, Download, FileText, FileVideo, ChevronDown, Loader2, CheckCircle2, Search, Copy, Check } from "lucide-react";
+import { Play, Pause, ListTodo, AlertTriangle, MonitorPlay, Download, FileText, FileVideo, ChevronDown, Loader2, CheckCircle2, Search, Copy, Check, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Subtitle {
@@ -79,6 +79,10 @@ export default function EditorView({ onNewProject, jobId, srtContent, setSrtCont
     const [exportSuccess, setExportSuccess] = useState<string | null>(null);
     const [exportError, setExportError] = useState<string | null>(null);
 
+    // Video info & enhancement
+    const [videoHeight, setVideoHeight] = useState<number>(0);
+    const [upscaleTarget, setUpscaleTarget] = useState<number | null>(null);
+
     const videoRef = useRef<HTMLVideoElement>(null);
     const exportRef = useRef<HTMLDivElement>(null);
 
@@ -94,6 +98,15 @@ export default function EditorView({ onNewProject, jobId, srtContent, setSrtCont
         { id: "outline", name: "Outline", desc: "White text, black stroke" },
         { id: "bold-center", name: "Bold Center", desc: "Large centered, glow effect" },
     ];
+
+    // Fetch video resolution on mount
+    useEffect(() => {
+        if (!jobId) return;
+        fetch(`/api/video-info?jobId=${jobId}`)
+            .then(res => res.json())
+            .then(data => { if (data.height) setVideoHeight(data.height); })
+            .catch(() => {});
+    }, [jobId]);
 
     // Parse SRT
     useEffect(() => {
@@ -288,7 +301,7 @@ export default function EditorView({ onNewProject, jobId, srtContent, setSrtCont
                 const res = await fetch("/api/burn", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ jobId, srtContent: latestSrt, stylePreset })
+                    body: JSON.stringify({ jobId, srtContent: latestSrt, stylePreset, targetHeight: upscaleTarget })
                 });
 
                 if (!res.ok) {
@@ -676,6 +689,40 @@ export default function EditorView({ onNewProject, jobId, srtContent, setSrtCont
                                             </div>
                                             {downloading === "mp4" && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
                                         </button>
+
+                                        {/* Upscale option — only show if video is below 1080p */}
+                                        {videoHeight > 0 && videoHeight < 1080 && (
+                                            <>
+                                                <div className="mx-4 my-1 border-t border-border/50" />
+                                                <div className="px-4 py-3">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                                                        <span className="text-xs font-semibold text-foreground">Enhance Resolution</span>
+                                                        <span className="text-[10px] text-muted-foreground ml-auto">{videoHeight}p current</span>
+                                                    </div>
+                                                    <div className="flex gap-1.5">
+                                                        {[
+                                                            { label: "Original", value: null },
+                                                            ...(videoHeight < 720 ? [{ label: "720p", value: 720 }] : []),
+                                                            ...(videoHeight < 1080 ? [{ label: "1080p", value: 1080 }] : []),
+                                                        ].map((opt) => (
+                                                            <button
+                                                                key={opt.label}
+                                                                onClick={() => setUpscaleTarget(opt.value)}
+                                                                className={cn(
+                                                                    "flex-1 text-[11px] font-medium py-1.5 rounded-md border transition-all",
+                                                                    upscaleTarget === opt.value
+                                                                        ? "border-primary bg-primary/10 text-primary"
+                                                                        : "border-border text-muted-foreground hover:border-primary/40"
+                                                                )}
+                                                            >
+                                                                {opt.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </motion.div>
                             )}

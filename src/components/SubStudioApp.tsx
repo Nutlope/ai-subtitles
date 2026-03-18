@@ -120,10 +120,36 @@ export default function SubStudioApp() {
         };
     }, [isHistoryOpen]);
 
+    const cleanTitle = (source: string): string => {
+        if (!source || source === "Unknown") return "Untitled project";
+
+        // File upload — strip extension and clean up
+        if (source.includes('.') && !source.startsWith('http')) {
+            return source.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+
+        // YouTube URL — extract readable part
+        if (source.includes('youtube.com') || source.includes('youtu.be')) {
+            return "YouTube video";
+        }
+
+        // Direct URL — use filename from path
+        try {
+            const url = new URL(source);
+            const filename = url.pathname.split('/').pop() || '';
+            if (filename && filename.includes('.')) {
+                return filename.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+            }
+            return url.hostname.replace('www.', '');
+        } catch {
+            return source.length > 40 ? source.slice(0, 40) + '...' : source;
+        }
+    };
+
     const saveToHistory = (jId: string, source: string) => {
         const entry: HistoryEntry = {
             id: jId,
-            title: source || "Untitled project",
+            title: cleanTitle(source),
             date: new Date().toISOString(),
             stylePreset,
         };

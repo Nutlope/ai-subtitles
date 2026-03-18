@@ -71,22 +71,60 @@ export async function extractAudio(videoPath: string, audioPath: string): Promis
 }
 
 /**
- * Burn subtitles into the video
+ * Get video metadata (resolution, bitrate, etc.)
  */
-export async function burnSubtitles(videoPath: string, srtPath: string, outputPath: string): Promise<void> {
+export function getVideoInfo(videoPath: string): Promise<{ width: number; height: number; bitrate: number }> {
+    return new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(videoPath, (err, metadata) => {
+            if (err) return reject(err);
+            const videoStream = metadata.streams.find(s => s.codec_type === 'video');
+            resolve({
+                width: videoStream?.width || 1920,
+                height: videoStream?.height || 1080,
+                bitrate: metadata.format.bit_rate ? parseInt(String(metadata.format.bit_rate)) : 0,
+            });
+        });
+    });
+}
+
+/**
+ * Burn subtitles into the video with high-quality encoding.
+ * Uses CRF 17 (visually lossless) and copies audio without re-encoding.
+ * Optionally upscales to a target height (e.g. 1080, 1440, 2160).
+ */
+export async function burnSubtitles(
+    videoPath: string,
+    srtPath: string,
+    outputPath: string,
+    options?: { targetHeight?: number }
+): Promise<void> {
     return new Promise((resolve, reject) => {
         if (!fs.existsSync(videoPath)) return reject(new Error("Video path missing"));
         if (!fs.existsSync(srtPath)) return reject(new Error("SRT path missing"));
 
-        // FFmpeg subtitle filter needs backslashes escaped for Windows/Paths if needed, 
-        // but simple paths Usually work if not containing special characters.
-        // It's safer to copy the srt to the same dir or use absolute path without weird spaces
         const safeSrtPath = srtPath.replace(/\\/g, '/');
+
+        // Build the video filter chain
+        const filters: string[] = [];
+
+        // Optional upscale — only scale UP, never down
+        if (options?.targetHeight) {
+            // scale=-2:targetHeight uses lanczos for high-quality upscaling
+            // The expression only upscales: if input is already >= target, keep original
+            filters.push(`scale=-2:'if(lt(ih,${options.targetHeight}),${options.targetHeight},ih)':flags=lanczos`);
+        }
+
+        // Subtitle burn filter
+        filters.push(`subtitles='${safeSrtPath}':force_style='Fontname=Outfit,Fontsize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=2,Shadow=0'`);
 
         ffmpeg(videoPath)
             .outputOptions([
-                '-vf', `subtitles='${safeSrtPath}':force_style='Fontname=Outfit,Fontsize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=2,Shadow=0'`,
-                '-c:a copy' // Copy audio without recoding
+                '-vf', filters.join(','),
+                '-c:v libx264',   // Explicit H.264 codec
+                '-crf 17',        // Visually lossless quality
+                '-preset medium', // Good balance of speed and compression
+                '-pix_fmt yuv420p', // Maximum compatibility
+                '-c:a copy'       // Copy audio without re-encoding
             ])
             .on('error', (err) => {
                 console.error("FFmpeg Burn Error:", err);

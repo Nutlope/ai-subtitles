@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { burnSubtitles } from '@/lib/video-utils';
+import { burnSubtitles, getVideoInfo } from '@/lib/video-utils';
 import fs from 'fs';
 import path from 'path';
 
@@ -8,7 +8,7 @@ export const maxDuration = 300; // 5 mins max duration
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { jobId, srtContent } = body;
+        const { jobId, srtContent, targetHeight } = body;
 
         if (!jobId) {
             return NextResponse.json({ error: 'No jobId provided' }, { status: 400 });
@@ -34,8 +34,9 @@ export async function POST(req: NextRequest) {
         }
 
         // Start burning process (this can take time)
-        console.log(`Burning subtitles for ${jobId}...`);
-        await burnSubtitles(videoPath, srtPath, outputPath);
+        const enhanceOpts = targetHeight ? { targetHeight: Number(targetHeight) } : undefined;
+        console.log(`Burning subtitles for ${jobId}...${enhanceOpts ? ` (upscale to ${enhanceOpts.targetHeight}p)` : ''}`);
+        await burnSubtitles(videoPath, srtPath, outputPath, enhanceOpts);
         console.log(`Finished burning subtitles for ${jobId}. Output saved to ${outputPath}`);
 
         if (isProduction) {
