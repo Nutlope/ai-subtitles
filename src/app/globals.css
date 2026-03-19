@@ -158,14 +158,18 @@
 
 .hero-gradient-text {
   background: linear-gradient(
-    135deg,
-    hsl(220, 80%, 72%),
-    hsl(260, 70%, 70%),
-    hsl(310, 60%, 68%),
-    hsl(260, 70%, 70%),
-    hsl(220, 80%, 72%)
+    90deg,
+    #FF3B30,
+    #FF9500,
+    #C8D200,
+    #34C759,
+    #00BCD4,
+    #34C759,
+    #C8D200,
+    #FF9500,
+    #FF3B30
   );
-  background-size: 300% 300%;
+  background-size: 300% 100%;
   animation: gradient-shift 6s ease-in-out infinite;
   -webkit-background-clip: text;
   background-clip: text;

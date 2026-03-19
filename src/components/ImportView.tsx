@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion } from "framer-motion";
-import { UploadCloud, Link as LinkIcon, FileVideo, ArrowRight, ArrowUp, Zap, Target, Palette, Github } from "lucide-react";
+import { UploadCloud, Link as LinkIcon, ArrowRight, ArrowUp, Zap, Target, Palette, Github } from "lucide-react";
 import SubtitleSimulator from "./SubtitleSimulator";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -157,7 +157,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
-                className="min-h-[85vh] flex flex-col items-center justify-center p-6 relative z-10"
+                className="min-h-[90vh] flex flex-col items-center justify-center px-6 pt-12 pb-20 relative z-10"
             >
                 {/* Badge */}
                 <motion.div
@@ -196,15 +196,17 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                         variants={headlineChild}
                         className="text-4xl md:text-5xl lg:text-[3.4rem] font-bold tracking-tight text-foreground leading-[1.15]"
                     >
-                        Perfect subtitles,
+                        Perfect{" "}
+                        <span className="hero-gradient-text">
+                            subtitles
+                        </span>
+                        ,
                     </motion.h1>
                     <motion.h1
                         variants={headlineChild}
-                        className="text-4xl md:text-5xl lg:text-[3.4rem] font-bold tracking-tight leading-[1.15] mt-1"
+                        className="text-4xl md:text-5xl lg:text-[3.4rem] font-bold tracking-tight text-foreground leading-[1.15] mt-1"
                     >
-                        <span className="hero-gradient-text">
-                            zero effort.
-                        </span>
+                        zero effort.
                     </motion.h1>
                     <motion.p
                         variants={headlineChild}
@@ -320,8 +322,20 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                 whileTap={{ scale: 0.98 }}
                                 className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all duration-300 text-left group relative z-20"
                             >
-                                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/15 transition-colors">
-                                    <FileVideo className="w-6 h-6 text-primary" />
+                                {/* Custom play triangle inspired by the SubStudio logo */}
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF3B30] via-[#34C759] to-[#00BCD4] p-[1.5px] shrink-0 group-hover:shadow-lg group-hover:shadow-[#34C759]/20 transition-shadow">
+                                    <div className="w-full h-full rounded-[10px] bg-background flex items-center justify-center">
+                                        <svg width="14" height="16" viewBox="0 0 14 16" fill="none" className="ml-0.5">
+                                            <path d="M13 7.134a1 1 0 0 1 0 1.732l-11.5 6.64A1 1 0 0 1 0 14.639V1.361A1 1 0 0 1 1.5.495L13 7.134Z" fill="url(#sample-play-grad)" />
+                                            <defs>
+                                                <linearGradient id="sample-play-grad" x1="0" y1="0" x2="14" y2="16" gradientUnits="userSpaceOnUse">
+                                                    <stop stopColor="#FF9500" />
+                                                    <stop offset="0.5" stopColor="#34C759" />
+                                                    <stop offset="1" stopColor="#00BCD4" />
+                                                </linearGradient>
+                                            </defs>
+                                        </svg>
+                                    </div>
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-semibold text-foreground">Try with a sample video</p>

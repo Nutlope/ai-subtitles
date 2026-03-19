@@ -19,6 +19,7 @@ interface EditorViewProps {
     words: unknown[];
     stylePreset: string;
     setStylePreset: (style: string) => void;
+    isSample?: boolean;
 }
 
 function parseTime(timeStr: string): number {
@@ -65,7 +66,7 @@ const subtitleCardVariant = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function EditorView({ onNewProject, jobId, srtContent, setSrtContent, words: _words, stylePreset, setStylePreset }: EditorViewProps) {
+export default function EditorView({ onNewProject, jobId, srtContent, setSrtContent, words: _words, stylePreset, setStylePreset, isSample }: EditorViewProps) {
     const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
     const [isPlaying, setIsPlaying] = useState(false);
     const [showReviewQueue, setShowReviewQueue] = useState(false);
@@ -350,7 +351,7 @@ export default function EditorView({ onNewProject, jobId, srtContent, setSrtCont
         }
     };
 
-    const videoUrl = jobId ? `/api/video?jobId=${jobId}` : '';
+    const videoUrl = isSample ? '/sample-demo.mp4' : jobId ? `/api/video?jobId=${jobId}` : '';
 
     // --- Style-dependent subtitle rendering ---
     const renderSubtitleOverlay = () => {

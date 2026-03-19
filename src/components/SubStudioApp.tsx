@@ -25,11 +25,11 @@ export interface HistoryEntry {
 /* ── Job data persistence for URL routing ── */
 const JOB_PREFIX = "substudio_job_";
 
-function saveJobData(jId: string, data: { srtContent: string; words: unknown[]; stylePreset: string; source: string }) {
+function saveJobData(jId: string, data: { srtContent: string; words: unknown[]; stylePreset: string; source: string; isSample?: boolean }) {
     try { localStorage.setItem(`${JOB_PREFIX}${jId}`, JSON.stringify(data)); } catch { /* quota exceeded */ }
 }
 
-function loadJobData(jId: string): { srtContent: string; words: unknown[]; stylePreset: string; source: string } | null {
+function loadJobData(jId: string): { srtContent: string; words: unknown[]; stylePreset: string; source: string; isSample?: boolean } | null {
     const raw = localStorage.getItem(`${JOB_PREFIX}${jId}`);
     if (!raw) return null;
     try { return JSON.parse(raw); } catch { return null; }
@@ -97,6 +97,7 @@ export default function SubStudioApp() {
             setSrtContent(data.srtContent);
             setWords(data.words);
             setStylePreset(data.stylePreset);
+            if (data.isSample) setIsSample(true);
             setStep("editor");
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,7 +107,7 @@ export default function SubStudioApp() {
     useEffect(() => {
         if (step === "editor" && jobId && srtContent) {
             const source = videoFile?.name || youtubeUrl || "Unknown";
-            saveJobData(jobId, { srtContent, words, stylePreset, source });
+            saveJobData(jobId, { srtContent, words, stylePreset, source, isSample });
             window.history.replaceState(null, "", `?jobId=${jobId}`);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -498,6 +499,7 @@ export default function SubStudioApp() {
                                 words={words}
                                 stylePreset={stylePreset}
                                 setStylePreset={setStylePreset}
+                                isSample={isSample}
                             />
                         </motion.div>
                     )}
