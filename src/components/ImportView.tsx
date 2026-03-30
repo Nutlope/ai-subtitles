@@ -86,9 +86,9 @@ const STATS = [
         outerGradient: "from-[#3B82F6] to-[#06B6D4]",
         renderIcon: () => (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="url(#stat-target)" strokeWidth="2" />
-                <circle cx="12" cy="12" r="6" stroke="url(#stat-target)" strokeWidth="2" />
-                <circle cx="12" cy="12" r="2" fill="url(#stat-target)" />
+                <circle cx="12" cy="12" r="10" fill="url(#stat-target)" opacity="0.15" />
+                <circle cx="12" cy="12" r="7" fill="url(#stat-target)" opacity="0.3" />
+                <circle cx="12" cy="12" r="3.5" fill="url(#stat-target)" />
                 <defs>
                     <linearGradient id="stat-target" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
                         <stop stopColor="#3B82F6" />
