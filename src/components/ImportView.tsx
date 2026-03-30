@@ -477,7 +477,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                     <motion.button
                         onClick={scrollToHero}
                         whileTap={{ scale: 0.98 }}
-                        className="inline-flex items-center gap-2.5 bg-foreground text-background px-7 py-3.5 rounded-full font-semibold text-sm shadow-lg hover:shadow-xl transition-shadow duration-300"
+                        className="inline-flex items-center gap-2.5 bg-foreground text-background px-7 py-3.5 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-shadow duration-300"
                     >
                         Get Started — Free
                         <ArrowUp className="w-4 h-4" />
