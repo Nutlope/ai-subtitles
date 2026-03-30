@@ -43,7 +43,7 @@ const panelSlideLeft = {
     visible: {
         opacity: 1,
         x: 0,
-        transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+        transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as const },
     },
 };
 
@@ -52,7 +52,7 @@ const panelSlideRight = {
     visible: {
         opacity: 1,
         x: 0,
-        transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.1 },
+        transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as const, delay: 0.1 },
     },
 };
 
@@ -61,12 +61,12 @@ const subtitleCardVariant = {
     visible: {
         opacity: 1,
         y: 0,
-        transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] },
+        transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const },
     },
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function EditorView({ onNewProject, jobId, srtContent, setSrtContent, words: _words, stylePreset, setStylePreset, isSample }: EditorViewProps) {
+export default function EditorView({ onNewProject: _onNewProject, jobId, srtContent, setSrtContent, words: _words, stylePreset, setStylePreset, isSample }: EditorViewProps) {
     const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
     const [isPlaying, setIsPlaying] = useState(false);
     const [showReviewQueue, setShowReviewQueue] = useState(false);
@@ -530,6 +530,7 @@ export default function EditorView({ onNewProject, jobId, srtContent, setSrtCont
                             <video
                                 ref={videoRef}
                                 src={videoUrl}
+                                aria-label="Video player"
                                 className="w-full h-full object-contain"
                                 onTimeUpdate={handleTimeUpdate}
                                 onPlay={() => setIsPlaying(true)}

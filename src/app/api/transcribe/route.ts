@@ -1,20 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractAudio } from '@/lib/video-utils';
+import { rateLimit } from '@/lib/rate-limit';
 import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
 
 export const maxDuration = 300; // 5 mins max duration for long transcriptions if deployed
 
+const limiter = rateLimit({ interval: 60_000, limit: 5 });
+
 export async function POST(req: NextRequest) {
     try {
+        const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+        const { success } = limiter.check(ip);
+        if (!success) {
+            return NextResponse.json({ error: 'Rate limit exceeded. Try again in a minute.' }, { status: 429 });
+        }
+
         const body = await req.json();
         const { jobId, apiKey } = body;
 
         const finalApiKey = apiKey || process.env.TOGETHER_API_KEY;
 
-        if (!jobId) {
-            return NextResponse.json({ error: 'No jobId provided' }, { status: 400 });
+        if (!jobId || !/^[a-zA-Z0-9-]+$/.test(jobId)) {
+            return NextResponse.json({ error: 'Invalid or missing jobId' }, { status: 400 });
         }
         if (!finalApiKey) {
             return NextResponse.json({ error: 'No API key provided locally or in .env' }, { status: 401 });
@@ -134,7 +143,12 @@ export async function POST(req: NextRequest) {
 
     } catch (error: unknown) {
         console.error("Transcription Error:", error);
-        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Error' }, { status: 500 });
+        const message = error instanceof Error ? error.message : 'Internal Error';
+        // Strip URLs and API keys from error messages before sending to client
+        const safeMessage = message
+            .replace(/https?:\/\/[^\s]+/g, '[redacted-url]')
+            .replace(/sk-[a-zA-Z0-9]+/g, '[redacted-key]');
+        return NextResponse.json({ error: safeMessage }, { status: 500 });
     }
 }
 

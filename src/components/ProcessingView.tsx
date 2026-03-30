@@ -29,7 +29,7 @@ const childFadeUp = {
     visible: {
         opacity: 1,
         y: 0,
-        transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+        transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
     },
 };
 
@@ -38,7 +38,7 @@ const stageItemVariant = {
     visible: {
         opacity: 1,
         x: 0,
-        transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+        transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const },
     },
 };
 
@@ -47,7 +47,7 @@ const checkPop = {
     animate: {
         scale: 1,
         opacity: 1,
-        transition: { type: "spring", stiffness: 500, damping: 15 },
+        transition: { type: "spring" as const, stiffness: 500, damping: 15 },
     },
 };
 
@@ -266,7 +266,23 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                             </motion.p>
                         </AnimatePresence>
 
-                        {/* Out-of-credits action buttons */}
+                        {/* Error action buttons */}
+                        {error && error !== "out-of-credits" && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.3, delay: 0.15 }}
+                                className="flex items-center justify-center gap-3 pt-2"
+                            >
+                                <button
+                                    onClick={onReset}
+                                    className="inline-flex items-center gap-1.5 text-sm font-medium bg-foreground text-background px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
+                                >
+                                    <ArrowLeft className="w-3.5 h-3.5" />
+                                    Go Back & Try Again
+                                </button>
+                            </motion.div>
+                        )}
                         {error === "out-of-credits" && (
                             <motion.div
                                 initial={{ opacity: 0, y: 8 }}

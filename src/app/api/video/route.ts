@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/rate-limit';
 import fs from 'fs';
 import path from 'path';
 
+const limiter = rateLimit({ interval: 60_000, limit: 30 });
+
 export async function GET(req: NextRequest) {
     try {
+        const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+        const { success } = limiter.check(ip);
+        if (!success) {
+            return NextResponse.json({ error: 'Rate limit exceeded. Try again in a minute.' }, { status: 429 });
+        }
+
         const { searchParams } = new URL(req.url);
         const jobId = searchParams.get('jobId');
 
@@ -75,8 +84,17 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        const fileBuffer = fs.readFileSync(mediaPath);
-        return new NextResponse(fileBuffer, {
+        // Stream the full file instead of loading it all into memory
+        const fileStream = fs.createReadStream(mediaPath);
+        const readable = new ReadableStream({
+            start(controller) {
+                fileStream.on('data', (chunk: Buffer | string) => controller.enqueue(typeof chunk === 'string' ? Buffer.from(chunk) : chunk));
+                fileStream.on('end', () => controller.close());
+                fileStream.on('error', (err) => controller.error(err));
+            },
+        });
+
+        return new NextResponse(readable, {
             headers: {
                 'Content-Length': String(fileSize),
                 'Content-Type': contentType,

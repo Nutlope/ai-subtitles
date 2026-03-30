@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { downloadYoutubeVideo, isYoutubeUrl } from '@/lib/video-utils';
+import { rateLimit } from '@/lib/rate-limit';
 import fs from 'fs';
 import path from 'path';
 
 export const maxDuration = 300; // 5 mins max for downloads
+
+const limiter = rateLimit({ interval: 60_000, limit: 10 });
 
 /** Detect file extension from MIME type or filename */
 function detectExt(mimeType: string, fileName: string): string {
@@ -16,6 +19,12 @@ function detectExt(mimeType: string, fileName: string): string {
 
 export async function POST(req: NextRequest) {
     try {
+        const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+        const { success } = limiter.check(ip);
+        if (!success) {
+            return NextResponse.json({ error: 'Rate limit exceeded. Try again in a minute.' }, { status: 429 });
+        }
+
         const jobId = uuidv4();
         const baseTempDir = process.env.NODE_ENV === 'production'
             ? path.join('/tmp', 'substudio')
@@ -33,6 +42,14 @@ export async function POST(req: NextRequest) {
 
             if (!file) {
                 return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+            }
+
+            const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+            if (file.size > MAX_FILE_SIZE) {
+                return NextResponse.json(
+                    { error: 'File too large. Maximum size is 500MB.' },
+                    { status: 413 }
+                );
             }
 
             const ext = detectExt(file.type, file.name);

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion } from "framer-motion";
-import { UploadCloud, Link as LinkIcon, ArrowRight, ArrowUp, Github } from "lucide-react";
+import { UploadCloud, Link as LinkIcon, ArrowRight, ArrowUp, GithubIcon } from "lucide-react";
 import SubtitleSimulator from "./SubtitleSimulator";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -280,7 +280,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                             {isDragActive ? "Drop video here" : "Click or drag video to upload"}
                                         </p>
                                         <p className="text-sm text-muted-foreground font-medium">
-                                            MP4, MOV, WEBM, MP3 up to 1GB
+                                            MP4, MOV, WEBM, MP3 up to 500MB · under 2 hours
                                         </p>
                                     </div>
                                 </div>
@@ -305,6 +305,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                         <input
                                             type="text"
                                             placeholder="Paste YouTube or MP4 link..."
+                                            aria-label="Video URL"
                                             className="w-full pl-12 pr-4 py-3.5 bg-muted/30 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary focus:bg-background transition-all duration-300 shadow-sm text-foreground font-medium"
                                             value={url}
                                             onChange={(e) => {
@@ -322,7 +323,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                         Import <ArrowRight className="w-4 h-4" />
                                     </motion.button>
                                 </div>
-                                {error && (
+                                {error ? (
                                     <motion.p
                                         initial={{ opacity: 0, y: -4 }}
                                         animate={{ opacity: 1, y: 0 }}
@@ -330,6 +331,10 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                     >
                                         {error}
                                     </motion.p>
+                                ) : (
+                                    <p className="text-[11px] text-muted-foreground/50 px-1">
+                                        Direct video URLs work best. YouTube links may be blocked by bot detection — if so, download the video and upload it.
+                                    </p>
                                 )}
                             </form>
 
@@ -431,7 +436,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                         "w-9 h-9 rounded-lg p-[1.5px] mb-3 bg-gradient-to-br shrink-0 group-hover:shadow-lg transition-shadow",
                                         stat.outerGradient
                                     )}>
-                                        <div className="w-full h-full rounded-[6px] bg-background flex items-center justify-center">
+                                        <div className="w-full h-full rounded-[6px] bg-background flex items-center justify-center overflow-hidden">
                                             {stat.renderIcon()}
                                         </div>
                                     </div>
@@ -509,7 +514,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                 rel="noreferrer"
                                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                             >
-                                <Github className="w-3.5 h-3.5" />
+                                <GithubIcon className="w-3.5 h-3.5" />
                                 GitHub
                             </a>
                             <span className="text-[11px] text-muted-foreground/40">

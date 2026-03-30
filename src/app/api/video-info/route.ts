@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVideoInfo } from '@/lib/video-utils';
+import { rateLimit } from '@/lib/rate-limit';
 import fs from 'fs';
 import path from 'path';
 
+const limiter = rateLimit({ interval: 60_000, limit: 30 });
+
 export async function GET(req: NextRequest) {
     try {
+        const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+        const { success } = limiter.check(ip);
+        if (!success) {
+            return NextResponse.json({ error: 'Rate limit exceeded. Try again in a minute.' }, { status: 429 });
+        }
+
         const jobId = req.nextUrl.searchParams.get('jobId');
         if (!jobId || !/^[a-zA-Z0-9-]+$/.test(jobId)) {
             return NextResponse.json({ error: 'Invalid jobId' }, { status: 400 });

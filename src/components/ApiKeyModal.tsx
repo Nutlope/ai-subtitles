@@ -42,12 +42,16 @@ export default function ApiKeyModal({ isOpen, onClose, variant = "default" }: { 
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.93, y: 10 }}
                         transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="API Key Settings"
                         className="bg-card border border-border rounded-xl shadow-lg w-full max-w-md p-6 relative"
                     >
                         <motion.button
                             onClick={onClose}
                             whileTap={{ scale: 0.9 }}
                             transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            aria-label="Close"
                             className="absolute right-4 top-4 text-muted-foreground hover:text-foreground transition-colors"
                         >
                             <X className="w-5 h-5" />

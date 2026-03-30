@@ -83,6 +83,8 @@ export default function SubStudioApp() {
     const [stylePreset, setStylePreset] = useState<string>("classic");
     const [isSample, setIsSample] = useState(false);
     const [apiKeyModalVariant, setApiKeyModalVariant] = useState<"default" | "out-of-credits">("default");
+    const [hasApiKey, setHasApiKey] = useState(false);
+    const [freeUsed, setFreeUsed] = useState(false);
 
     const historyRef = useRef<HTMLDivElement>(null);
     const searchParams = useSearchParams();
@@ -125,7 +127,7 @@ export default function SubStudioApp() {
         return () => window.removeEventListener("popstate", handlePopState);
     }, []);
 
-    // Load history from localStorage
+    // Load history + credit state from localStorage
     useEffect(() => {
         const stored = localStorage.getItem("substudio_history");
         if (stored) {
@@ -133,6 +135,8 @@ export default function SubStudioApp() {
                 setHistoryEntries(JSON.parse(stored));
             } catch { /* ignore parse errors */ }
         }
+        setHasApiKey(!!localStorage.getItem("substudio_together_api_key"));
+        setFreeUsed(localStorage.getItem("substudio_free_used") === "true");
     }, []);
 
 
@@ -238,6 +242,9 @@ export default function SubStudioApp() {
     const handleProcessingComplete = () => {
         const source = videoFile?.name || youtubeUrl || "Unknown";
         saveToHistory(jobId, source);
+        // Refresh credit state after processing
+        setHasApiKey(!!localStorage.getItem("substudio_together_api_key"));
+        setFreeUsed(localStorage.getItem("substudio_free_used") === "true");
         setStep("editor");
     };
 
@@ -259,7 +266,7 @@ export default function SubStudioApp() {
 
 
     return (
-        <div className="flex flex-col h-screen w-full bg-background text-foreground overflow-hidden font-sans">
+        <div className="flex flex-col h-dvh w-full bg-background text-foreground overflow-hidden font-sans">
             {/* Nav Bar */}
             <motion.header
                 initial={{ opacity: 0, y: -10 }}
@@ -437,12 +444,22 @@ export default function SubStudioApp() {
                         </AnimatePresence>
                     </div>
 
-                    <Tooltip label="API Key Settings">
+                    <Tooltip label={hasApiKey ? "API Key Settings" : freeUsed ? "Add API key to continue" : "1 free credit available"}>
                         <button
-                            onClick={() => { setApiKeyModalVariant("default"); setIsApiKeyOpen(true); }}
-                            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg transition-all duration-200"
+                            onClick={() => {
+                                setApiKeyModalVariant(freeUsed && !hasApiKey ? "out-of-credits" : "default");
+                                setIsApiKeyOpen(true);
+                            }}
+                            className="relative p-2 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg transition-all duration-200"
                         >
                             <KeyRound className="w-[18px] h-[18px]" />
+                            {/* Credit status dot */}
+                            {!hasApiKey && (
+                                <span className={cn(
+                                    "absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card",
+                                    freeUsed ? "bg-amber-500" : "bg-green-500"
+                                )} />
+                            )}
                         </button>
                     </Tooltip>
 
@@ -564,7 +581,12 @@ export default function SubStudioApp() {
                 )}
             </AnimatePresence>
 
-            <ApiKeyModal isOpen={isApiKeyOpen} onClose={() => { setIsApiKeyOpen(false); setApiKeyModalVariant("default"); }} variant={apiKeyModalVariant} />
+            <ApiKeyModal isOpen={isApiKeyOpen} onClose={() => {
+                setIsApiKeyOpen(false);
+                setApiKeyModalVariant("default");
+                // Refresh credit state after modal closes (user may have added key)
+                setHasApiKey(!!localStorage.getItem("substudio_together_api_key"));
+            }} variant={apiKeyModalVariant} />
         </div>
     );
 }

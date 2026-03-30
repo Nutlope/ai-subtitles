@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Outfit } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -22,7 +22,14 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://substudio.vercel.app"),
   title: "SubStudio",
   description: "The fastest way to caption your videos — powered by Together AI",
   icons: {
