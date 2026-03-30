@@ -433,10 +433,10 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
 
                                 <div className="relative z-10">
                                     <div className={cn(
-                                        "w-9 h-9 rounded-lg p-[1.5px] mb-3 bg-gradient-to-br shrink-0 group-hover:shadow-lg transition-shadow",
+                                        "w-9 h-9 rounded-[10px] p-[2px] mb-3 bg-gradient-to-br shrink-0 group-hover:shadow-lg transition-shadow",
                                         stat.outerGradient
                                     )}>
-                                        <div className="w-full h-full rounded-[6px] bg-background flex items-center justify-center overflow-hidden">
+                                        <div className="w-full h-full rounded-[8px] bg-background flex items-center justify-center overflow-hidden">
                                             {stat.renderIcon()}
                                         </div>
                                     </div>
