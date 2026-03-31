@@ -126,11 +126,85 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                         });
                     }
                 } else if (youtubeUrl) {
-                    processResponse = await fetch("/api/process", {
+                    // 1. Get download URLs from our API (server calls YTStream)
+                    const infoRes = await fetch("/api/youtube-info", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ youtubeUrl }),
                     });
+                    if (!infoRes.ok) {
+                        const data = await infoRes.json().catch(() => ({}));
+                        throw new Error(data.error || "Failed to fetch YouTube video info");
+                    }
+                    const info = await infoRes.json();
+
+                    // 2. Download video+audio in browser (residential IP avoids bot detection)
+                    const downloadUrl = info.combinedUrl || info.videoUrl;
+                    if (!downloadUrl) throw new Error("No download URL available for this video");
+
+                    const [videoBlob, audioBlob] = await Promise.all([
+                        fetch(downloadUrl).then((r) => {
+                            if (!r.ok) throw new Error(`Video download failed: ${r.status}`);
+                            return r.blob();
+                        }),
+                        // Only download audio separately if using adaptive (non-combined) stream
+                        info.combinedUrl
+                            ? Promise.resolve(null)
+                            : info.audioUrl
+                                ? fetch(info.audioUrl).then((r) => {
+                                    if (!r.ok) throw new Error(`Audio download failed: ${r.status}`);
+                                    return r.blob();
+                                })
+                                : Promise.resolve(null),
+                    ]);
+
+                    // 3. Merge into a single file if we have separate streams
+                    let uploadFile: File;
+                    if (audioBlob && !info.combinedUrl) {
+                        // For separate video+audio, combine them into one file
+                        // We'll upload video only — server will handle merging or just use the video
+                        // Actually, upload both as video — ffmpeg on server can extract audio from video-only
+                        uploadFile = new File([videoBlob], `${info.title || 'youtube'}.mp4`, { type: 'video/mp4' });
+                    } else {
+                        uploadFile = new File([videoBlob], `${info.title || 'youtube'}.mp4`, { type: 'video/mp4' });
+                    }
+
+                    // 4. Upload to Vercel Blob
+                    try {
+                        const { upload } = await import('@vercel/blob/client');
+                        const slug = (info.title || 'youtube').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+                        const blob = await upload(`${slug}-${crypto.randomUUID()}.mp4`, uploadFile, {
+                            access: 'private',
+                            handleUploadUrl: '/api/upload',
+                        });
+                        blobUrl = blob.url;
+                        setBlobUrl(blobUrl);
+                    } catch (uploadErr) {
+                        const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+                        const isMissingConfig =
+                            msg.includes('BLOB_READ_WRITE_TOKEN') ||
+                            msg.includes('not configured') ||
+                            msg.includes('MODULE_NOT_FOUND');
+                        if (!isMissingConfig) {
+                            throw new Error(`Upload failed: ${msg}`);
+                        }
+                    }
+
+                    // 5. Register with /api/process as blob or direct upload
+                    if (blobUrl) {
+                        processResponse = await fetch("/api/process", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ blobUrl }),
+                        });
+                    } else {
+                        const formData = new FormData();
+                        formData.append("file", uploadFile);
+                        processResponse = await fetch("/api/process", {
+                            method: "POST",
+                            body: formData,
+                        });
+                    }
                 } else {
                     throw new Error("No video provided");
                 }
