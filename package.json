@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "bash scripts/postinstall.sh"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
@@ -24,7 +25,6 @@
     "react-dom": "^18",
     "react-dropzone": "^15.0.0",
     "tailwind-merge": "^3.5.0",
-    "undici": "^7.24.6",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

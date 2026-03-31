@@ -1,6 +1,6 @@
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
-import { ProxyAgent, fetch as undiciFetch } from 'undici';
+import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -12,129 +12,58 @@ export function isYoutubeUrl(url: string): boolean {
     return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/.test(url);
 }
 
-function extractYoutubeId(url: string): string | null {
-    const m = url.match(
-        /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
-    );
-    return m?.[1] || null;
-}
-
-interface YTStreamFormat {
-    url: string;
-    mimeType: string;
-    qualityLabel?: string;
-    contentLength?: string;
-    bitrate?: number;
-}
-
-interface YTStreamResponse {
-    status: string;
-    adaptiveFormats: YTStreamFormat[];
-    formats: YTStreamFormat[];
+/** Resolve path to the bundled yt-dlp binary */
+function getYtDlpPath(): string {
+    const binPath = path.join(process.cwd(), 'bin', 'yt-dlp');
+    if (fs.existsSync(binPath)) return binPath;
+    return 'yt-dlp';
 }
 
 /**
- * Downloads a YouTube video via the YTStream RapidAPI service.
- * Tries combined format first (less likely to be IP-locked),
- * then falls back to adaptive video+audio merge.
+ * Downloads a YouTube video using yt-dlp with an optional residential proxy.
  */
 export async function downloadYoutubeVideo(url: string, outputPath: string): Promise<void> {
     const dir = path.dirname(outputPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    const videoId = extractYoutubeId(url);
-    if (!videoId) throw new Error('Invalid YouTube URL');
+    const ytDlp = getYtDlpPath();
+    const args = [
+        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        '--merge-output-format', 'mp4',
+        '--no-playlist',
+        '--no-warnings',
+        '-o', outputPath,
+    ];
 
-    const apiKey = process.env.RAPIDAPI_KEY;
-    if (!apiKey) throw new Error('RAPIDAPI_KEY environment variable is not set');
-
-    console.log(`[ytstream] Fetching formats for ${videoId}...`);
-
-    const res = await fetch(
-        `https://ytstream-download-youtube-videos.p.rapidapi.com/dl?id=${videoId}`,
-        {
-            headers: {
-                'Content-Type': 'application/json',
-                'x-rapidapi-host': 'ytstream-download-youtube-videos.p.rapidapi.com',
-                'x-rapidapi-key': apiKey,
-            },
-        }
-    );
-
-    if (!res.ok) throw new Error(`YTStream API error: ${res.status} ${res.statusText}`);
-
-    const data = (await res.json()) as YTStreamResponse;
-    if (data.status !== 'OK') throw new Error(`YTStream API returned status: ${data.status}`);
-
-    // Download best video + audio streams and merge with ffmpeg
-    const videoStream = data.adaptiveFormats
-        .filter((f) => f.mimeType.startsWith('video/mp4') && f.mimeType.includes('avc1') && f.url)
-        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-
-    const audioStream = data.adaptiveFormats
-        .filter((f) => f.mimeType.startsWith('audio/mp4') && f.url)
-        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-
-    if (!videoStream || !audioStream) {
-        throw new Error('No suitable video/audio streams found');
-    }
-
-    console.log(`[ytstream] Downloading: ${videoStream.qualityLabel} + audio (proxy: ${!!process.env.RESIDENTIAL_PROXY_URL})`);
-
-    const videoTmp = outputPath.replace('.mp4', '.video.mp4');
-    const audioTmp = outputPath.replace('.mp4', '.audio.m4a');
-
-    try {
-        await Promise.all([
-            downloadFile(videoStream.url, videoTmp),
-            downloadFile(audioStream.url, audioTmp),
-        ]);
-
-        await mergeVideoAudio(videoTmp, audioTmp, outputPath);
-        console.log(`[ytstream] Download complete: ${outputPath}`);
-    } finally {
-        for (const f of [videoTmp, audioTmp]) {
-            if (fs.existsSync(f)) try { fs.unlinkSync(f); } catch { /* ignore */ }
-        }
-    }
-}
-
-async function downloadFile(url: string, dest: string): Promise<void> {
     const proxyUrl = process.env.RESIDENTIAL_PROXY_URL;
-
-    const res = proxyUrl
-        ? await undiciFetch(url, {
-              dispatcher: new ProxyAgent(proxyUrl),
-              redirect: 'follow',
-          })
-        : await fetch(url, { redirect: 'follow' });
-
-    if (!res.ok || !res.body) throw new Error(`Failed to download: ${res.status}`);
-
-    const fileStream = fs.createWriteStream(dest);
-    const reader = (res.body as ReadableStream<Uint8Array>).getReader();
-
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fileStream.write(Buffer.from(value));
+    if (proxyUrl) {
+        args.push('--proxy', proxyUrl);
+        console.log('[yt-dlp] Using residential proxy');
     }
-    fileStream.end();
-    await new Promise<void>((resolve) => fileStream.on('finish', resolve));
-}
 
-function mergeVideoAudio(videoPath: string, audioPath: string, outputPath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        ffmpeg(videoPath)
-            .input(audioPath)
-            .outputOptions(['-c:v copy', '-c:a copy', '-movflags +faststart'])
-            .on('error', (err) => {
-                console.error('[ytstream] FFmpeg merge error:', err);
+    args.push(url);
+
+    console.log(`[yt-dlp] Downloading: ${url}`);
+
+    await new Promise<void>((resolve, reject) => {
+        execFile(ytDlp, args, { timeout: 5 * 60 * 1000 }, (error, stdout, stderr) => {
+            if (error) {
+                console.error('[yt-dlp] stderr:', stderr);
                 if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch { /* ignore */ }
-                reject(err);
-            })
-            .on('end', () => resolve())
-            .save(outputPath);
+                reject(new Error(`yt-dlp failed: ${stderr || error.message}`));
+                return;
+            }
+            console.log('[yt-dlp] stdout:', stdout);
+
+            if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size === 0) {
+                if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+                reject(new Error('yt-dlp completed but output file is empty'));
+                return;
+            }
+
+            console.log(`[yt-dlp] Download complete: ${outputPath}`);
+            resolve();
+        });
     });
 }
 
