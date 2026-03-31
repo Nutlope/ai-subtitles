@@ -164,8 +164,9 @@ export async function burnSubtitles(
             .videoFilters(filters)
             .outputOptions([
                 '-c:v libx264',
-                '-crf 17',
-                '-preset medium',
+                '-crf 28',
+                '-preset ultrafast',
+                '-threads 0',
                 '-pix_fmt yuv420p',
                 '-c:a copy',
                 '-movflags +faststart',
