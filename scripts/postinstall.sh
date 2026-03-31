@@ -12,8 +12,9 @@ esac
 
 TARGET="$BIN_DIR/yt-dlp"
 
-if [ -f "$TARGET" ]; then
-  echo "[postinstall] yt-dlp already exists, skipping download"
+# Always re-download if platform changed (e.g. cached macOS binary on Linux)
+if [ -f "$TARGET" ] && "$TARGET" --version >/dev/null 2>&1; then
+  echo "[postinstall] yt-dlp already exists and works, skipping download"
   exit 0
 fi
 
