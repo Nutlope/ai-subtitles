@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { isYoutubeUrl } from '@/lib/video-utils';
+import { isYoutubeUrl, downloadYoutubeVideo } from '@/lib/video-utils';
 import { rateLimit } from '@/lib/rate-limit';
 import fs from 'fs';
 import path from 'path';
@@ -109,12 +109,11 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ jobId, status: 'success', type: 'url', ext: urlExt });
 
             } else if (isYoutubeUrl(mediaUrl)) {
-                // YouTube downloads are handled client-side via /api/youtube-info
-                // and uploaded as blobs. This path should not be reached.
-                return NextResponse.json(
-                    { error: 'YouTube URLs should be processed client-side. Please refresh and try again.' },
-                    { status: 400 }
-                );
+                const videoPath = path.join(baseTempDir, `${jobId}.mp4`);
+                console.log(`Downloading YouTube video for job ${jobId}...`);
+                await downloadYoutubeVideo(mediaUrl, videoPath);
+
+                return NextResponse.json({ jobId, status: 'success', type: 'url', ext: 'mp4' });
 
             } else {
                 return NextResponse.json(

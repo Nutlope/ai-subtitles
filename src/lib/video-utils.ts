@@ -11,6 +11,144 @@ export function isYoutubeUrl(url: string): boolean {
     return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/.test(url);
 }
 
+function extractYoutubeId(url: string): string | null {
+    const m = url.match(
+        /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+    );
+    return m?.[1] || null;
+}
+
+interface YTStreamFormat {
+    url: string;
+    mimeType: string;
+    qualityLabel?: string;
+    contentLength?: string;
+    bitrate?: number;
+}
+
+interface YTStreamResponse {
+    status: string;
+    adaptiveFormats: YTStreamFormat[];
+    formats: YTStreamFormat[];
+}
+
+/**
+ * Downloads a YouTube video via the YTStream RapidAPI service.
+ * Tries combined format first (less likely to be IP-locked),
+ * then falls back to adaptive video+audio merge.
+ */
+export async function downloadYoutubeVideo(url: string, outputPath: string): Promise<void> {
+    const dir = path.dirname(outputPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const videoId = extractYoutubeId(url);
+    if (!videoId) throw new Error('Invalid YouTube URL');
+
+    const apiKey = process.env.RAPIDAPI_KEY;
+    if (!apiKey) throw new Error('RAPIDAPI_KEY environment variable is not set');
+
+    console.log(`[ytstream] Fetching formats for ${videoId}...`);
+
+    const res = await fetch(
+        `https://ytstream-download-youtube-videos.p.rapidapi.com/dl?id=${videoId}`,
+        {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-rapidapi-host': 'ytstream-download-youtube-videos.p.rapidapi.com',
+                'x-rapidapi-key': apiKey,
+            },
+        }
+    );
+
+    if (!res.ok) throw new Error(`YTStream API error: ${res.status} ${res.statusText}`);
+
+    const data = (await res.json()) as YTStreamResponse;
+    if (data.status !== 'OK') throw new Error(`YTStream API returned status: ${data.status}`);
+
+    // Strategy 1: Try combined format (video+audio in one stream, typically 360p)
+    // These may be less strictly IP-locked than adaptive streams
+    const combined = data.formats?.find(
+        (f) => f.mimeType.startsWith('video/mp4') && f.url
+    );
+
+    if (combined) {
+        console.log(`[ytstream] Trying combined format: ${combined.qualityLabel}`);
+        try {
+            await downloadFile(combined.url, outputPath);
+            if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+                console.log(`[ytstream] Combined format download complete: ${outputPath}`);
+                return;
+            }
+        } catch (err) {
+            console.warn(`[ytstream] Combined format failed:`, err instanceof Error ? err.message : err);
+            if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch { /* ignore */ }
+        }
+    }
+
+    // Strategy 2: Try adaptive streams (separate video + audio, merge with ffmpeg)
+    const videoStream = data.adaptiveFormats
+        .filter((f) => f.mimeType.startsWith('video/mp4') && f.mimeType.includes('avc1') && f.url)
+        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+
+    const audioStream = data.adaptiveFormats
+        .filter((f) => f.mimeType.startsWith('audio/mp4') && f.url)
+        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+
+    if (!videoStream || !audioStream) {
+        throw new Error('No suitable video/audio streams found');
+    }
+
+    console.log(`[ytstream] Trying adaptive: ${videoStream.qualityLabel} + audio`);
+
+    const videoTmp = outputPath.replace('.mp4', '.video.mp4');
+    const audioTmp = outputPath.replace('.mp4', '.audio.m4a');
+
+    try {
+        await Promise.all([
+            downloadFile(videoStream.url, videoTmp),
+            downloadFile(audioStream.url, audioTmp),
+        ]);
+
+        await mergeVideoAudio(videoTmp, audioTmp, outputPath);
+        console.log(`[ytstream] Adaptive download complete: ${outputPath}`);
+    } finally {
+        for (const f of [videoTmp, audioTmp]) {
+            if (fs.existsSync(f)) try { fs.unlinkSync(f); } catch { /* ignore */ }
+        }
+    }
+}
+
+async function downloadFile(url: string, dest: string): Promise<void> {
+    const res = await fetch(url, { redirect: 'follow' });
+    if (!res.ok || !res.body) throw new Error(`Failed to download: ${res.status}`);
+
+    const fileStream = fs.createWriteStream(dest);
+    const reader = res.body.getReader();
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        fileStream.write(Buffer.from(value));
+    }
+    fileStream.end();
+    await new Promise<void>((resolve) => fileStream.on('finish', resolve));
+}
+
+function mergeVideoAudio(videoPath: string, audioPath: string, outputPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        ffmpeg(videoPath)
+            .input(audioPath)
+            .outputOptions(['-c:v copy', '-c:a copy', '-movflags +faststart'])
+            .on('error', (err) => {
+                console.error('[ytstream] FFmpeg merge error:', err);
+                if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch { /* ignore */ }
+                reject(err);
+            })
+            .on('end', () => resolve())
+            .save(outputPath);
+    });
+}
+
 /* ── FFmpeg utilities ── */
 
 export async function extractAudio(videoPath: string, audioPath: string): Promise<void> {
