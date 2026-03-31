@@ -28,8 +28,10 @@ export async function downloadYoutubeVideo(url: string, outputPath: string): Pro
 
     const ytDlp = getYtDlpPath();
     const ffmpegDir = path.dirname(ffmpegPath.path);
+    console.log(`[yt-dlp] ffmpeg location: ${ffmpegDir}`);
+    console.log(`[yt-dlp] ffmpeg exists: ${fs.existsSync(ffmpegPath.path)}`);
     const args = [
-        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        '-f', 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
         '--merge-output-format', 'mp4',
         '--no-playlist',
         '--no-warnings',
