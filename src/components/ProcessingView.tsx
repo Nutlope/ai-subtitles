@@ -88,13 +88,25 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                     let blobUrl: string | null = null;
                     try {
                         const { upload } = await import('@vercel/blob/client');
-                        const blob = await upload(videoFile.name, videoFile, {
-                            access: 'public',
+                        const ext = videoFile.name.split('.').pop()?.toLowerCase() || 'mp4';
+                        const nameWithoutExt = videoFile.name.replace(/\.[^.]+$/, '');
+                        const slug = nameWithoutExt.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+                        const blob = await upload(`${slug}-${crypto.randomUUID()}.${ext}`, videoFile, {
+                            access: 'private',
                             handleUploadUrl: '/api/upload',
                         });
                         blobUrl = blob.url;
-                    } catch {
-                        // Vercel Blob not configured — fall back to direct upload
+                    } catch (err) {
+                        // If Blob token isn't configured, fall back to direct upload.
+                        // Otherwise surface the real error to the user.
+                        const msg = err instanceof Error ? err.message : String(err);
+                        const isMissingConfig =
+                            msg.includes('BLOB_READ_WRITE_TOKEN') ||
+                            msg.includes('not configured') ||
+                            msg.includes('MODULE_NOT_FOUND');
+                        if (!isMissingConfig) {
+                            throw new Error(`Upload failed: ${msg}`);
+                        }
                     }
 
                     if (blobUrl) {

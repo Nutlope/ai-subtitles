@@ -80,7 +80,11 @@ export async function POST(req: NextRequest) {
                 const filePath = path.join(baseTempDir, `${jobId}.${urlExt}`);
 
                 console.log(`Fetching ${isBlobUpload ? 'blob' : 'direct'} URL for job ${jobId}...`);
-                const response = await fetch(mediaUrl, { cache: 'no-store' });
+                const fetchHeaders: Record<string, string> = {};
+                if (isBlobUpload && process.env.BLOB_READ_WRITE_TOKEN) {
+                    fetchHeaders['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`;
+                }
+                const response = await fetch(mediaUrl, { cache: 'no-store', headers: fetchHeaders });
                 if (!response.ok) {
                     throw new Error(`Failed to fetch media: ${response.statusText}`);
                 }
