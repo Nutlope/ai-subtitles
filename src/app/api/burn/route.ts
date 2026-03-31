@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { burnSubtitles } from '@/lib/video-utils';
 import { rateLimit } from '@/lib/rate-limit';
+import { ensureLocalFile } from '@/lib/blob-utils';
 import fs from 'fs';
 import path from 'path';
 
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { jobId, srtContent, targetHeight, isSample } = body;
+        const { jobId, srtContent, targetHeight, isSample, blobUrl } = body;
 
         if (!jobId || !/^[a-zA-Z0-9-]+$/.test(jobId)) {
             return NextResponse.json({ error: 'Invalid or missing jobId' }, { status: 400 });
@@ -51,7 +52,10 @@ export async function POST(req: NextRequest) {
         }
 
         if (!fs.existsSync(videoPath)) {
-            return NextResponse.json({ error: 'Source video not found' }, { status: 404 });
+            const found = await ensureLocalFile(videoPath, blobUrl);
+            if (!found) {
+                return NextResponse.json({ error: 'Source video not found' }, { status: 404 });
+            }
         }
 
         if (srtContent) {

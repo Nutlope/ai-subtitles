@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/rate-limit';
+import { ensureLocalFile } from '@/lib/blob-utils';
 import fs from 'fs';
 import path from 'path';
 
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid jobId' }, { status: 400 });
         }
 
+        const blobUrl = searchParams.get('blobUrl');
         const baseTempDir = process.env.NODE_ENV === 'production'
             ? path.join('/tmp', 'substudio')
             : path.join(process.cwd(), 'public', 'temp');
@@ -47,6 +49,16 @@ export async function GET(req: NextRequest) {
                 else if (ext === 'mov') contentType = 'video/quicktime';
                 else contentType = 'video/mp4';
                 break;
+            }
+        }
+
+        // If not found locally, try downloading from Blob
+        if (!mediaPath && blobUrl) {
+            const defaultPath = path.join(baseTempDir, `${safeJobId}.mp4`);
+            const found = await ensureLocalFile(defaultPath, blobUrl);
+            if (found) {
+                mediaPath = defaultPath;
+                contentType = 'video/mp4';
             }
         }
 

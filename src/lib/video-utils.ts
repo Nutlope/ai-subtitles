@@ -132,20 +132,6 @@ export async function extractAudio(videoPath: string, audioPath: string): Promis
     });
 }
 
-export function getVideoInfo(videoPath: string): Promise<{ width: number; height: number; bitrate: number }> {
-    return new Promise((resolve, reject) => {
-        ffmpeg.ffprobe(videoPath, (err, metadata) => {
-            if (err) return reject(err);
-            const videoStream = metadata.streams.find(s => s.codec_type === 'video');
-            resolve({
-                width: videoStream?.width || 1920,
-                height: videoStream?.height || 1080,
-                bitrate: metadata.format.bit_rate ? parseInt(String(metadata.format.bit_rate)) : 0,
-            });
-        });
-    });
-}
-
 export async function burnSubtitles(
     videoPath: string,
     srtPath: string,

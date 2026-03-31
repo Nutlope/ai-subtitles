@@ -20,6 +20,7 @@ interface EditorViewProps {
     stylePreset: string;
     setStylePreset: (style: string) => void;
     isSample?: boolean;
+    blobUrl?: string | null;
 }
 
 function parseTime(timeStr: string): number {
@@ -66,7 +67,7 @@ const subtitleCardVariant = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function EditorView({ onNewProject: _onNewProject, jobId, srtContent, setSrtContent, words: _words, stylePreset, setStylePreset, isSample }: EditorViewProps) {
+export default function EditorView({ onNewProject: _onNewProject, jobId, srtContent, setSrtContent, words: _words, stylePreset, setStylePreset, isSample, blobUrl }: EditorViewProps) {
     const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
     const [isPlaying, setIsPlaying] = useState(false);
     const [showReviewQueue, setShowReviewQueue] = useState(false);
@@ -109,14 +110,11 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
         { id: "bold-center", name: "Bold Center", desc: "Large centered, glow effect" },
     ];
 
-    // Fetch video resolution on mount
-    useEffect(() => {
-        if (!jobId) return;
-        fetch(`/api/video-info?jobId=${jobId}`)
-            .then(res => res.json())
-            .then(data => { if (data.height) setVideoHeight(data.height); })
-            .catch(() => {});
-    }, [jobId]);
+    // Get video resolution client-side from the <video> element
+    const handleVideoMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+        const video = e.currentTarget;
+        if (video.videoHeight > 0) setVideoHeight(video.videoHeight);
+    };
 
     // Parse SRT
     useEffect(() => {
@@ -322,7 +320,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                 const res = await fetch("/api/burn", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ jobId, srtContent: latestSrt, stylePreset, targetHeight: upscaleTarget, isSample })
+                    body: JSON.stringify({ jobId, srtContent: latestSrt, stylePreset, targetHeight: upscaleTarget, isSample, blobUrl })
                 });
 
                 if (!res.ok) {
@@ -387,14 +385,14 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                 const blob = new Blob(binaryChunks as BlobPart[], { type: "video/mp4" });
                 if (blob.size === 0) throw new Error("Encoded video is empty");
 
-                const blobUrl = URL.createObjectURL(blob);
+                const downloadUrl = URL.createObjectURL(blob);
                 const a = document.createElement("a");
-                a.href = blobUrl;
+                a.href = downloadUrl;
                 a.download = `substudio_${jobId}_captioned.mp4`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                URL.revokeObjectURL(blobUrl);
+                URL.revokeObjectURL(downloadUrl);
                 showToast("Video exported!");
                 setBurnProgress(null);
             }
@@ -407,7 +405,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
         }
     };
 
-    const videoUrl = isSample ? '/sample-demo.mp4' : jobId ? `/api/video?jobId=${jobId}` : '';
+    const videoUrl = isSample ? '/sample-demo.mp4' : jobId ? `/api/video?jobId=${jobId}${blobUrl ? `&blobUrl=${encodeURIComponent(blobUrl)}` : ''}` : '';
 
     // --- Style-dependent subtitle rendering ---
     const renderSubtitleOverlay = () => {
@@ -538,7 +536,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                                 onTimeUpdate={handleTimeUpdate}
                                 onPlay={() => setIsPlaying(true)}
                                 onPause={() => setIsPlaying(false)}
-                                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                                onLoadedMetadata={(e) => { setDuration(e.currentTarget.duration); handleVideoMetadata(e); }}
                                 onError={() => setVideoError(true)}
                                 onClick={togglePlay}
                             />

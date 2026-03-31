@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractAudio } from '@/lib/video-utils';
 import { rateLimit } from '@/lib/rate-limit';
+import { ensureLocalFile } from '@/lib/blob-utils';
 import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { jobId, apiKey } = body;
+        const { jobId, apiKey, blobUrl } = body;
 
         const finalApiKey = apiKey || process.env.TOGETHER_API_KEY;
 
@@ -36,6 +37,15 @@ export async function POST(req: NextRequest) {
 
         // Check if the input is already an audio file (MP3 upload) or a video
         const videoPath = path.join(baseTempDir, `${jobId}.mp4`);
+
+        // If file not on disk, try fetching from Blob
+        if (!fs.existsSync(videoPath) && !fs.existsSync(audioPath)) {
+            if (blobUrl) {
+                if (!fs.existsSync(baseTempDir)) fs.mkdirSync(baseTempDir, { recursive: true });
+                await ensureLocalFile(videoPath, blobUrl);
+            }
+        }
+
         const hasVideo = fs.existsSync(videoPath);
         const hasAudio = fs.existsSync(audioPath);
 

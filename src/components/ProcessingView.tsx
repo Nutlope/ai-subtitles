@@ -14,6 +14,7 @@ interface ProcessingViewProps {
     isSample: boolean;
     onOutOfCredits: () => void;
     onReset: () => void;
+    setBlobUrl: (url: string | null) => void;
 }
 
 /* ── Animation variants ── */
@@ -51,7 +52,7 @@ const checkPop = {
     },
 };
 
-export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId, setSrtContent, setWords, isSample, onOutOfCredits, onReset }: ProcessingViewProps) {
+export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId, setSrtContent, setWords, isSample, onOutOfCredits, onReset, setBlobUrl }: ProcessingViewProps) {
     const [currentStage, setCurrentStage] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const hasStarted = useRef(false);
@@ -83,18 +84,31 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
 
                 // Stage 0: Ingest Video
                 let processResponse;
+                let blobUrl: string | null = null;
                 if (videoFile) {
                     // Try Vercel Blob upload first (bypasses Vercel's 4.5MB body limit)
-                    let blobUrl: string | null = null;
                     try {
                         const { upload } = await import('@vercel/blob/client');
-                        const blob = await upload(videoFile.name, videoFile, {
-                            access: 'public',
+                        const ext = videoFile.name.split('.').pop()?.toLowerCase() || 'mp4';
+                        const nameWithoutExt = videoFile.name.replace(/\.[^.]+$/, '');
+                        const slug = nameWithoutExt.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+                        const blob = await upload(`${slug}-${crypto.randomUUID()}.${ext}`, videoFile, {
+                            access: 'private',
                             handleUploadUrl: '/api/upload',
                         });
                         blobUrl = blob.url;
-                    } catch {
-                        // Vercel Blob not configured — fall back to direct upload
+                        setBlobUrl(blobUrl);
+                    } catch (err) {
+                        // If Blob token isn't configured, fall back to direct upload.
+                        // Otherwise surface the real error to the user.
+                        const msg = err instanceof Error ? err.message : String(err);
+                        const isMissingConfig =
+                            msg.includes('BLOB_READ_WRITE_TOKEN') ||
+                            msg.includes('not configured') ||
+                            msg.includes('MODULE_NOT_FOUND');
+                        if (!isMissingConfig) {
+                            throw new Error(`Upload failed: ${msg}`);
+                        }
                     }
 
                     if (blobUrl) {
@@ -143,7 +157,7 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                 const transcribeResponse = await fetch("/api/transcribe", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ jobId, apiKey }),
+                    body: JSON.stringify({ jobId, apiKey, blobUrl }),
                 });
 
                 if (!transcribeResponse.ok) {
