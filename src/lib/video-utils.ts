@@ -27,11 +27,13 @@ export async function downloadYoutubeVideo(url: string, outputPath: string): Pro
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const ytDlp = getYtDlpPath();
+    const ffmpegDir = path.dirname(ffmpegPath.path);
     const args = [
         '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         '--merge-output-format', 'mp4',
         '--no-playlist',
         '--no-warnings',
+        '--ffmpeg-location', ffmpegDir,
         '-o', outputPath,
     ];
 
@@ -53,6 +55,7 @@ export async function downloadYoutubeVideo(url: string, outputPath: string): Pro
                 reject(new Error(`yt-dlp failed: ${stderr || error.message}`));
                 return;
             }
+            if (stderr) console.warn('[yt-dlp] stderr:', stderr);
             console.log('[yt-dlp] stdout:', stdout);
 
             if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size === 0) {
