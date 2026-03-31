@@ -33,6 +33,9 @@ yarn-error.log*
 # temp media files
 /public/temp/
 
+# yt-dlp binary (downloaded via postinstall)
+/bin/
+
 # vercel
 .vercel
 

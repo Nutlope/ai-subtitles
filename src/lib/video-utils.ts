@@ -1,6 +1,6 @@
-import ytdl from '@distube/ytdl-core';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
+import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -8,106 +8,62 @@ ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 /* ── YouTube helpers ── */
 
-function extractYoutubeId(url: string): string | null {
-    const m = url.match(
-        /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
-    );
-    return m?.[1] || null;
+export function isYoutubeUrl(url: string): boolean {
+    return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/.test(url);
 }
 
-export function isYoutubeUrl(url: string): boolean {
-    return ytdl.validateURL(url) || extractYoutubeId(url) !== null;
+/** Resolve path to the bundled yt-dlp binary */
+function getYtDlpPath(): string {
+    // Bundled binary installed by postinstall script
+    const binPath = path.join(process.cwd(), 'bin', 'yt-dlp');
+    if (fs.existsSync(binPath)) return binPath;
+
+    // Fallback to global yt-dlp (local dev)
+    return 'yt-dlp';
 }
 
 /**
- * Downloads a YouTube video using @distube/ytdl-core with browser-like headers.
- * Retries with different quality/filter settings if the first attempt fails.
+ * Downloads a YouTube video using yt-dlp CLI.
+ * Merges best video+audio into an MP4 container.
  */
 export async function downloadYoutubeVideo(url: string, outputPath: string): Promise<void> {
     const dir = path.dirname(outputPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    const browserHeaders = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"macOS"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-    };
-
-    // Attempt strategies in order — different filters/quality can bypass different blocks
-    const strategies: Array<{ filter: 'videoandaudio' | 'video' | 'audio'; quality: string }> = [
-        { filter: 'videoandaudio', quality: 'highest' },
-        { filter: 'videoandaudio', quality: 'lowest' },
-        { filter: 'video', quality: 'highest' },
+    const ytDlp = getYtDlpPath();
+    const args = [
+        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        '--merge-output-format', 'mp4',
+        '--no-playlist',
+        '--no-warnings',
+        '-o', outputPath,
+        url,
     ];
 
-    let lastError: Error | null = null;
+    console.log(`[yt-dlp] Using binary: ${ytDlp}`);
+    console.log(`[yt-dlp] Downloading: ${url}`);
 
-    for (const strategy of strategies) {
-        try {
-            console.log(`[yt] Trying strategy: filter=${strategy.filter}, quality=${strategy.quality}`);
-
-            const stream = ytdl(url, {
-                filter: strategy.filter,
-                quality: strategy.quality,
-                requestOptions: { headers: browserHeaders },
-            });
-
-            const fileStream = fs.createWriteStream(outputPath);
-
-            await new Promise<void>((resolve, reject) => {
-                stream.pipe(fileStream);
-                stream.on('error', (err: Error) => {
-                    fileStream.close();
-                    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-                    reject(err);
-                });
-                fileStream.on('finish', resolve);
-                fileStream.on('error', reject);
-            });
+    await new Promise<void>((resolve, reject) => {
+        execFile(ytDlp, args, { timeout: 5 * 60 * 1000 }, (error, stdout, stderr) => {
+            if (error) {
+                console.error('[yt-dlp] stderr:', stderr);
+                // Clean up partial file
+                if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch { /* ignore */ }
+                reject(new Error(`yt-dlp failed: ${stderr || error.message}`));
+                return;
+            }
+            console.log('[yt-dlp] stdout:', stdout);
 
             if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size === 0) {
                 if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-                throw new Error('Download completed but output file is empty');
+                reject(new Error('yt-dlp completed but output file is empty'));
+                return;
             }
 
-            console.log(`[yt] Success with strategy: filter=${strategy.filter}, quality=${strategy.quality}`);
-            return; // Success — exit
-        } catch (error: unknown) {
-            lastError = error instanceof Error ? error : new Error(String(error));
-            console.warn(`[yt] Strategy failed (filter=${strategy.filter}):`, lastError.message);
-            // Clean up before retrying
-            if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch { /* ignore */ }
-        }
-    }
-
-    // All strategies failed
-    const message = lastError?.message || 'Unknown error';
-    console.error('YouTube download failed after all strategies:', message);
-
-    if (
-        message.includes('Sign in') ||
-        message.includes('bot') ||
-        message.includes('confirm') ||
-        message.includes('UNPLAYABLE') ||
-        message.includes('unavailable') ||
-        message.includes('403') ||
-        message.includes('parsing watch') ||
-        message.includes('made a change')
-    ) {
-        throw new Error(
-            'YouTube downloads are currently unavailable due to YouTube restrictions. Please download the video manually from YouTube and upload the file instead.'
-        );
-    }
-    throw new Error(`Failed to download YouTube video: ${message}`);
+            console.log(`[yt-dlp] Download complete: ${outputPath}`);
+            resolve();
+        });
+    });
 }
 
 /* ── FFmpeg utilities ── */
