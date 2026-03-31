@@ -110,16 +110,11 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
         { id: "bold-center", name: "Bold Center", desc: "Large centered, glow effect" },
     ];
 
-    // Fetch video resolution on mount
-    useEffect(() => {
-        if (!jobId) return;
-        const params = new URLSearchParams({ jobId });
-        if (blobUrl) params.set('blobUrl', blobUrl);
-        fetch(`/api/video-info?${params}`)
-            .then(res => res.json())
-            .then(data => { if (data.height) setVideoHeight(data.height); })
-            .catch(() => {});
-    }, [jobId]);
+    // Get video resolution client-side from the <video> element
+    const handleVideoMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+        const video = e.currentTarget;
+        if (video.videoHeight > 0) setVideoHeight(video.videoHeight);
+    };
 
     // Parse SRT
     useEffect(() => {
@@ -541,7 +536,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                                 onTimeUpdate={handleTimeUpdate}
                                 onPlay={() => setIsPlaying(true)}
                                 onPause={() => setIsPlaying(false)}
-                                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                                onLoadedMetadata={(e) => { setDuration(e.currentTarget.duration); handleVideoMetadata(e); }}
                                 onError={() => setVideoError(true)}
                                 onClick={togglePlay}
                             />

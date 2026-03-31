@@ -1,5 +1,14 @@
 import fs from 'fs';
 
+function isVercelBlobUrl(url: string): boolean {
+    try {
+        const parsed = new URL(url);
+        return parsed.hostname.endsWith('.blob.vercel-storage.com');
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Ensure a file exists locally — if not, download it from the given Blob URL.
  * Returns the local file path.
@@ -7,6 +16,7 @@ import fs from 'fs';
 export async function ensureLocalFile(localPath: string, blobUrl: string | null): Promise<boolean> {
     if (fs.existsSync(localPath)) return true;
     if (!blobUrl) return false;
+    if (!isVercelBlobUrl(blobUrl)) throw new Error('Invalid blob URL');
 
     const headers: Record<string, string> = {};
     if (process.env.BLOB_READ_WRITE_TOKEN) {
@@ -19,14 +29,22 @@ export async function ensureLocalFile(localPath: string, blobUrl: string | null)
     const dir = localPath.substring(0, localPath.lastIndexOf('/'));
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    const fileStream = fs.createWriteStream(localPath);
-    const reader = response.body.getReader();
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fileStream.write(Buffer.from(value));
+    const tmpPath = localPath + '.tmp';
+    const fileStream = fs.createWriteStream(tmpPath);
+    try {
+        const reader = response.body.getReader();
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            fileStream.write(Buffer.from(value));
+        }
+        fileStream.end();
+        await new Promise<void>((resolve) => fileStream.on('finish', resolve));
+        fs.renameSync(tmpPath, localPath);
+    } catch (err) {
+        fileStream.end();
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+        throw err;
     }
-    fileStream.end();
-    await new Promise<void>((resolve) => fileStream.on('finish', resolve));
     return true;
 }
