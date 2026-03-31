@@ -1,5 +1,6 @@
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
+import { ProxyAgent, fetch as undiciFetch } from 'undici';
 import fs from 'fs';
 import path from 'path';
 
@@ -65,27 +66,7 @@ export async function downloadYoutubeVideo(url: string, outputPath: string): Pro
     const data = (await res.json()) as YTStreamResponse;
     if (data.status !== 'OK') throw new Error(`YTStream API returned status: ${data.status}`);
 
-    // Strategy 1: Try combined format (video+audio in one stream, typically 360p)
-    // These may be less strictly IP-locked than adaptive streams
-    const combined = data.formats?.find(
-        (f) => f.mimeType.startsWith('video/mp4') && f.url
-    );
-
-    if (combined) {
-        console.log(`[ytstream] Trying combined format: ${combined.qualityLabel}`);
-        try {
-            await downloadFile(combined.url, outputPath);
-            if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
-                console.log(`[ytstream] Combined format download complete: ${outputPath}`);
-                return;
-            }
-        } catch (err) {
-            console.warn(`[ytstream] Combined format failed:`, err instanceof Error ? err.message : err);
-            if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch { /* ignore */ }
-        }
-    }
-
-    // Strategy 2: Try adaptive streams (separate video + audio, merge with ffmpeg)
+    // Download best video + audio streams and merge with ffmpeg
     const videoStream = data.adaptiveFormats
         .filter((f) => f.mimeType.startsWith('video/mp4') && f.mimeType.includes('avc1') && f.url)
         .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
@@ -98,7 +79,7 @@ export async function downloadYoutubeVideo(url: string, outputPath: string): Pro
         throw new Error('No suitable video/audio streams found');
     }
 
-    console.log(`[ytstream] Trying adaptive: ${videoStream.qualityLabel} + audio`);
+    console.log(`[ytstream] Downloading: ${videoStream.qualityLabel} + audio (proxy: ${!!process.env.RESIDENTIAL_PROXY_URL})`);
 
     const videoTmp = outputPath.replace('.mp4', '.video.mp4');
     const audioTmp = outputPath.replace('.mp4', '.audio.m4a');
@@ -110,7 +91,7 @@ export async function downloadYoutubeVideo(url: string, outputPath: string): Pro
         ]);
 
         await mergeVideoAudio(videoTmp, audioTmp, outputPath);
-        console.log(`[ytstream] Adaptive download complete: ${outputPath}`);
+        console.log(`[ytstream] Download complete: ${outputPath}`);
     } finally {
         for (const f of [videoTmp, audioTmp]) {
             if (fs.existsSync(f)) try { fs.unlinkSync(f); } catch { /* ignore */ }
@@ -119,11 +100,19 @@ export async function downloadYoutubeVideo(url: string, outputPath: string): Pro
 }
 
 async function downloadFile(url: string, dest: string): Promise<void> {
-    const res = await fetch(url, { redirect: 'follow' });
+    const proxyUrl = process.env.RESIDENTIAL_PROXY_URL;
+
+    const res = proxyUrl
+        ? await undiciFetch(url, {
+              dispatcher: new ProxyAgent(proxyUrl),
+              redirect: 'follow',
+          })
+        : await fetch(url, { redirect: 'follow' });
+
     if (!res.ok || !res.body) throw new Error(`Failed to download: ${res.status}`);
 
     const fileStream = fs.createWriteStream(dest);
-    const reader = res.body.getReader();
+    const reader = (res.body as ReadableStream<Uint8Array>).getReader();
 
     while (true) {
         const { done, value } = await reader.read();
