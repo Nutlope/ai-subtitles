@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVideoInfo } from '@/lib/video-utils';
 import { rateLimit } from '@/lib/rate-limit';
+import { ensureLocalFile } from '@/lib/blob-utils';
 import fs from 'fs';
 import path from 'path';
 
@@ -21,12 +22,14 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid jobId' }, { status: 400 });
         }
 
+        const blobUrl = req.nextUrl.searchParams.get('blobUrl');
         const baseTempDir = process.env.NODE_ENV === 'production'
             ? path.join('/tmp', 'substudio')
             : path.join(process.cwd(), 'public', 'temp');
         const videoPath = path.join(baseTempDir, `${jobId}.mp4`);
 
-        if (!fs.existsSync(videoPath)) {
+        const found = await ensureLocalFile(videoPath, blobUrl);
+        if (!found) {
             return NextResponse.json({ error: 'Video not found' }, { status: 404 });
         }
 

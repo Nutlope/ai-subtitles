@@ -82,6 +82,7 @@ export default function SubStudioApp() {
     const [words, setWords] = useState<unknown[]>([]);
     const [stylePreset, setStylePreset] = useState<string>("classic");
     const [isSample, setIsSample] = useState(false);
+    const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [apiKeyModalVariant, setApiKeyModalVariant] = useState<"default" | "out-of-credits">("default");
     const [hasApiKey, setHasApiKey] = useState(false);
     const [freeUsed, setFreeUsed] = useState(false);
@@ -235,6 +236,7 @@ export default function SubStudioApp() {
         setWords([]);
         setStylePreset("classic");
         setIsSample(false);
+        setBlobUrl(null);
         setStep("import");
         window.history.pushState(null, "", "/");
     };
@@ -517,6 +519,7 @@ export default function SubStudioApp() {
                                 isSample={isSample}
                                 onOutOfCredits={handleOutOfCredits}
                                 onReset={resetApp}
+                                setBlobUrl={setBlobUrl}
                             />
                         </motion.div>
                     )}
@@ -538,6 +541,7 @@ export default function SubStudioApp() {
                                 stylePreset={stylePreset}
                                 setStylePreset={setStylePreset}
                                 isSample={isSample}
+                                blobUrl={blobUrl}
                             />
                         </motion.div>
                     )}

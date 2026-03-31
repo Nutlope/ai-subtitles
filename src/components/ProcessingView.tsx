@@ -14,6 +14,7 @@ interface ProcessingViewProps {
     isSample: boolean;
     onOutOfCredits: () => void;
     onReset: () => void;
+    setBlobUrl: (url: string | null) => void;
 }
 
 /* ── Animation variants ── */
@@ -51,7 +52,7 @@ const checkPop = {
     },
 };
 
-export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId, setSrtContent, setWords, isSample, onOutOfCredits, onReset }: ProcessingViewProps) {
+export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId, setSrtContent, setWords, isSample, onOutOfCredits, onReset, setBlobUrl }: ProcessingViewProps) {
     const [currentStage, setCurrentStage] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const hasStarted = useRef(false);
@@ -83,9 +84,9 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
 
                 // Stage 0: Ingest Video
                 let processResponse;
+                let blobUrl: string | null = null;
                 if (videoFile) {
                     // Try Vercel Blob upload first (bypasses Vercel's 4.5MB body limit)
-                    let blobUrl: string | null = null;
                     try {
                         const { upload } = await import('@vercel/blob/client');
                         const ext = videoFile.name.split('.').pop()?.toLowerCase() || 'mp4';
@@ -96,6 +97,7 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                             handleUploadUrl: '/api/upload',
                         });
                         blobUrl = blob.url;
+                        setBlobUrl(blobUrl);
                     } catch (err) {
                         // If Blob token isn't configured, fall back to direct upload.
                         // Otherwise surface the real error to the user.
@@ -155,7 +157,7 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                 const transcribeResponse = await fetch("/api/transcribe", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ jobId, apiKey }),
+                    body: JSON.stringify({ jobId, apiKey, blobUrl }),
                 });
 
                 if (!transcribeResponse.ok) {

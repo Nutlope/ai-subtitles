@@ -74,17 +74,20 @@ export async function POST(req: NextRequest) {
             const isBlobUpload = urlLower.includes('.blob.vercel-storage.com') || urlLower.includes('.blob.core.windows.net');
             const isDirectMedia = /\.(mp4|webm|mov|mp3|wav)(\?.*)?$/i.test(urlLower) || isBlobUpload;
 
-            if (isDirectMedia) {
-                // Determine extension from URL
+            if (isBlobUpload) {
+                // Blob uploads: skip downloading here — downstream routes
+                // will fetch from Blob on demand via ensureLocalFile.
+                const urlExt = urlLower.match(/\.(mp4|webm|mov|mp3|wav)/)?.[1] || 'mp4';
+                console.log(`Blob upload registered for job ${jobId}, skipping eager download`);
+                return NextResponse.json({ jobId, status: 'success', type: 'blob', ext: urlExt });
+
+            } else if (isDirectMedia) {
+                // Non-blob direct media URLs: download eagerly
                 const urlExt = urlLower.match(/\.(mp4|webm|mov|mp3|wav)/)?.[1] || 'mp4';
                 const filePath = path.join(baseTempDir, `${jobId}.${urlExt}`);
 
-                console.log(`Fetching ${isBlobUpload ? 'blob' : 'direct'} URL for job ${jobId}...`);
-                const fetchHeaders: Record<string, string> = {};
-                if (isBlobUpload && process.env.BLOB_READ_WRITE_TOKEN) {
-                    fetchHeaders['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`;
-                }
-                const response = await fetch(mediaUrl, { cache: 'no-store', headers: fetchHeaders });
+                console.log(`Fetching direct URL for job ${jobId}...`);
+                const response = await fetch(mediaUrl, { cache: 'no-store' });
                 if (!response.ok) {
                     throw new Error(`Failed to fetch media: ${response.statusText}`);
                 }
