@@ -1,75 +1,50 @@
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
-import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { Writable } from 'stream';
+import { pipeline } from 'stream/promises';
+import { Readable } from 'stream';
 
 ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 /* ── YouTube helpers ── */
 
+const YTPROXY_URL = 'https://www.ytproxy.io/api/download';
+
 export function isYoutubeUrl(url: string): boolean {
     return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/.test(url);
 }
 
-/** Resolve path to the bundled yt-dlp binary */
-function getYtDlpPath(): string {
-    const binPath = path.join(process.cwd(), 'bin', 'yt-dlp');
-    if (fs.existsSync(binPath)) return binPath;
-    return 'yt-dlp';
-}
-
 /**
- * Downloads a YouTube video using yt-dlp with an optional residential proxy.
+ * Downloads a YouTube video via ytproxy.io and streams it to disk.
  */
 export async function downloadYoutubeVideo(url: string, outputPath: string): Promise<void> {
     const dir = path.dirname(outputPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    const ytDlp = getYtDlpPath();
-    const ffmpegDir = path.dirname(ffmpegPath.path);
-    console.log(`[yt-dlp] ffmpeg location: ${ffmpegDir}`);
-    console.log(`[yt-dlp] ffmpeg exists: ${fs.existsSync(ffmpegPath.path)}`);
-    const args = [
-        '-f', 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
-        '--merge-output-format', 'mp4',
-        '--no-playlist',
-        '--no-warnings',
-        '--ffmpeg-location', ffmpegDir,
-        '-o', outputPath,
-    ];
+    console.log(`[ytproxy] Downloading: ${url}`);
 
-    const proxyUrl = process.env.RESIDENTIAL_PROXY_URL;
-    if (proxyUrl) {
-        args.push('--proxy', proxyUrl);
-        console.log('[yt-dlp] Using residential proxy');
+    const res = await fetch(YTPROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+    });
+
+    if (!res.ok || !res.body) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`ytproxy failed (${res.status}): ${text}`);
     }
 
-    args.push(url);
+    const fileStream = fs.createWriteStream(outputPath);
+    await pipeline(Readable.fromWeb(res.body as never), fileStream);
 
-    console.log(`[yt-dlp] Downloading: ${url}`);
+    if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size === 0) {
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        throw new Error('ytproxy returned an empty file');
+    }
 
-    await new Promise<void>((resolve, reject) => {
-        execFile(ytDlp, args, { timeout: 5 * 60 * 1000 }, (error, stdout, stderr) => {
-            if (error) {
-                console.error('[yt-dlp] stderr:', stderr);
-                if (fs.existsSync(outputPath)) try { fs.unlinkSync(outputPath); } catch { /* ignore */ }
-                reject(new Error(`yt-dlp failed: ${stderr || error.message}`));
-                return;
-            }
-            if (stderr) console.warn('[yt-dlp] stderr:', stderr);
-            console.log('[yt-dlp] stdout:', stdout);
-
-            if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size === 0) {
-                if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-                reject(new Error('yt-dlp completed but output file is empty'));
-                return;
-            }
-
-            console.log(`[yt-dlp] Download complete: ${outputPath}`);
-            resolve();
-        });
-    });
+    console.log(`[ytproxy] Download complete: ${outputPath} (${fs.statSync(outputPath).size} bytes)`);
 }
 
 /* ── FFmpeg utilities ── */
