@@ -1,9 +1,11 @@
 import fs from 'fs';
 
-function isVercelBlobUrl(url: string): boolean {
+const BLOB_STORE_HOST = '5bl7udrfii8u9xcy.private.blob.vercel-storage.com';
+
+function isOwnBlobUrl(url: string): boolean {
     try {
         const parsed = new URL(url);
-        return parsed.hostname.endsWith('.blob.vercel-storage.com');
+        return parsed.hostname === BLOB_STORE_HOST;
     } catch {
         return false;
     }
@@ -16,7 +18,7 @@ function isVercelBlobUrl(url: string): boolean {
 export async function ensureLocalFile(localPath: string, blobUrl: string | null): Promise<boolean> {
     if (fs.existsSync(localPath)) return true;
     if (!blobUrl) return false;
-    if (!isVercelBlobUrl(blobUrl)) throw new Error('Invalid blob URL');
+    if (!isOwnBlobUrl(blobUrl)) throw new Error('Invalid blob URL');
 
     const headers: Record<string, string> = {};
     if (process.env.BLOB_READ_WRITE_TOKEN) {
