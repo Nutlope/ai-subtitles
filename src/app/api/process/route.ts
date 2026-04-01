@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { isYoutubeUrl, downloadYoutubeVideo, getVideoDuration } from '@/lib/video-utils';
 import { rateLimit } from '@/lib/rate-limit';
 import { MAX_FILE_SIZE, MAX_FILE_SIZE_LABEL, MAX_YT_DURATION, MAX_YT_DURATION_LABEL } from '@/lib/limits';
+import { put } from '@vercel/blob';
 import fs from 'fs';
 import path from 'path';
 
@@ -127,7 +128,21 @@ export async function POST(req: NextRequest) {
                     console.warn('Could not probe YouTube video duration, proceeding anyway:', probeErr);
                 }
 
-                return NextResponse.json({ jobId, status: 'success', type: 'url', ext: 'mp4' });
+                // Upload to Vercel Blob so the file survives across serverless invocations
+                let blobUrl: string | undefined;
+                try {
+                    const fileBuffer = fs.readFileSync(videoPath);
+                    const blob = await put(`yt-${jobId}.mp4`, fileBuffer, {
+                        access: 'private',
+                        contentType: 'video/mp4',
+                    });
+                    blobUrl = blob.url;
+                    console.log(`YouTube video for job ${jobId} uploaded to Blob`);
+                } catch (blobErr) {
+                    console.warn('Could not upload YouTube video to Blob, video may not persist across requests:', blobErr);
+                }
+
+                return NextResponse.json({ jobId, status: 'success', type: 'url', ext: 'mp4', ...(blobUrl && { blobUrl }) });
 
             } else {
                 return NextResponse.json(

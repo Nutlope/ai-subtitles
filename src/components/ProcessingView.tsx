@@ -151,6 +151,12 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                 const jobId = processData.jobId;
                 setJobId(jobId);
 
+                // YouTube downloads return a blobUrl from the server
+                if (!blobUrl && processData.blobUrl) {
+                    blobUrl = processData.blobUrl;
+                    setBlobUrl(blobUrl);
+                }
+
                 // Stages 1-3 handled by /api/transcribe
                 setCurrentStage(1);
 
