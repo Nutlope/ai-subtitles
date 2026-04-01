@@ -206,7 +206,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
 
     // Copy transcript to clipboard
     const handleCopyTranscript = async () => {
-        const text = subtitles.map(s => s.text).join("\n");
+        const text = filteredSubtitles.map(s => s.text).join("\n");
         await navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -478,7 +478,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
             case "box":
                 return (
                     <div className="absolute bottom-14 left-0 right-0 flex justify-center z-10 px-8 pointer-events-none">
-                        <div className="bg-white px-5 py-2 rounded-lg text-center shadow-lg max-w-[90%]">
+                        <div className="bg-white px-5 py-2 text-center shadow-lg max-w-[90%]">
                             <span className="text-black font-semibold text-sm lg:text-base leading-snug tracking-wide">
                                 {displayText}
                             </span>

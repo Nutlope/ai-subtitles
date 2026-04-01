@@ -47,6 +47,17 @@ export async function downloadYoutubeVideo(url: string, outputPath: string): Pro
     console.log(`[ytproxy] Download complete: ${outputPath} (${fs.statSync(outputPath).size} bytes)`);
 }
 
+/* ── Duration check ── */
+
+export function getVideoDuration(filePath: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(filePath, (err, metadata) => {
+            if (err) return reject(err);
+            resolve(metadata.format.duration ?? 0);
+        });
+    });
+}
+
 /* ── FFmpeg utilities ── */
 
 export async function extractAudio(videoPath: string, audioPath: string): Promise<void> {

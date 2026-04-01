@@ -1,5 +1,6 @@
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { NextResponse } from 'next/server';
+import { MAX_FILE_SIZE } from '@/lib/limits';
 
 export async function POST(request: Request): Promise<NextResponse> {
     const body = (await request.json()) as HandleUploadBody;
@@ -13,7 +14,7 @@ export async function POST(request: Request): Promise<NextResponse> {
                     'video/mp4', 'video/quicktime', 'video/webm',
                     'audio/mpeg', 'audio/wav',
                 ],
-                maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
+                maximumSizeInBytes: MAX_FILE_SIZE,
             }),
             onUploadCompleted: async () => {
                 // Could log or track uploads here
