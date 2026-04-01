@@ -24,20 +24,27 @@ git clone https://github.com/Luffixos/ai-subtitles.git
 cd ai-subtitles
 ```
 
-### Getting a Together AI API key
+### Getting API keys
+
+**Together AI** (required — powers transcription):
 
 1. Go to [Together AI](https://api.together.ai/settings/api-keys) to create an account
 2. Copy your API key
 
-### Storing the API key in .env
+**YTDownload** (required for YouTube link support):
 
-Create a `.env` file in the root directory and add your key:
+1. Go to [ytdownload.io](https://www.ytdownload.io/) to create an account and get an API key
+
+### Storing API keys in .env
+
+Create a `.env` file in the root directory and add your keys:
 
 ```
 TOGETHER_API_KEY=your_api_key_here
+YTDOWNLOAD_API_KEY=your_api_key_here
 ```
 
-Or enter it directly in the app by clicking the key icon in the top-right corner.
+Or enter your Together AI key directly in the app by clicking the key icon in the top-right corner.
 
 ### Installing dependencies
 
