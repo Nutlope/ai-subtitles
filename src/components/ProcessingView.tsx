@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 
 interface ProcessingViewProps {
-    onNext: () => void;
+    onNext: (jobId: string) => void;
     videoFile: File | null;
     youtubeUrl: string;
     setJobId: (id: string) => void;
@@ -187,7 +187,7 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                 setCurrentStage(4);
 
                 setTimeout(() => {
-                    onNext();
+                    onNext(jobId);
                 }, 1000);
 
             } catch (err: unknown) {

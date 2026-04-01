@@ -207,6 +207,7 @@ export default function SubStudioApp() {
     };
 
     const saveToHistory = (jId: string, source: string) => {
+        if (!jId) return;
         const entry: HistoryEntry = {
             id: jId,
             title: cleanTitle(source),
@@ -241,9 +242,9 @@ export default function SubStudioApp() {
         window.history.pushState(null, "", "/");
     };
 
-    const handleProcessingComplete = () => {
+    const handleProcessingComplete = (completedJobId: string) => {
         const source = videoFile?.name || youtubeUrl || "Unknown";
-        saveToHistory(jobId, source);
+        saveToHistory(completedJobId, source);
         // Refresh credit state after processing
         setHasApiKey(!!localStorage.getItem("substudio_together_api_key"));
         setFreeUsed(localStorage.getItem("substudio_free_used") === "true");
