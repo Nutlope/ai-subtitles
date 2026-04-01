@@ -85,6 +85,9 @@ export async function burnSubtitles(
 
         if (options?.targetHeight) {
             filters.push(`scale=-2:'if(lt(ih,${options.targetHeight}),${options.targetHeight},ih)':flags=lanczos`);
+        } else {
+            // Cap at 720p — encoding 1080p+ is too slow on serverless vCPUs
+            filters.push(`scale=-2:'if(gt(ih,720),720,ih)':flags=fast_bilinear`);
         }
 
         let subtitleFilter = `subtitles='${safeSrtPath}'`;
