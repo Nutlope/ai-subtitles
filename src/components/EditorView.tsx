@@ -696,15 +696,30 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                                     onClick={() => setIsExportOpen(!isExportOpen)}
                                     whileTap={{ scale: 0.98 }}
                                     className={cn(
-                                        "text-sm px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all",
+                                        "text-sm px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all relative overflow-hidden",
                                         isExportOpen
                                             ? "bg-foreground text-background shadow-lg"
                                             : "bg-foreground text-background hover:bg-foreground/90"
                                     )}
                                 >
-                                    <Download className="w-4 h-4" />
-                                    Export
-                                    <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isExportOpen && "rotate-180")} />
+                                    {burnProgress && downloading === "mp4" ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <span>{burnProgress.stage === "encoding" ? `${Math.round(burnProgress.progress)}%` : burnProgress.stage === "preparing" ? "Preparing…" : "Finalizing…"}</span>
+                                            <motion.div
+                                                className="absolute bottom-0 left-0 h-0.5 bg-background/30"
+                                                initial={{ width: "0%" }}
+                                                animate={{ width: `${burnProgress.stage === "preparing" ? 5 : burnProgress.progress}%` }}
+                                                transition={{ duration: 0.3, ease: "easeOut" }}
+                                            />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Download className="w-4 h-4" />
+                                            Export
+                                            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isExportOpen && "rotate-180")} />
+                                        </>
+                                    )}
                                 </motion.button>
 
                         <AnimatePresence>
