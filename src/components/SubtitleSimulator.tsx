@@ -277,7 +277,7 @@ export default function SubtitleSimulator() {
             }
             case "box":
                 return (
-                    <div className="bg-white px-4 py-2 rounded-lg text-center shadow-lg">
+                    <div className="bg-white px-4 py-2 text-center shadow-lg">
                         <span className="text-black font-semibold text-xs sm:text-sm leading-snug">
                             {subtitleText}{cursor}
                         </span>
