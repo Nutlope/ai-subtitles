@@ -290,7 +290,10 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                             {isDragActive ? "Drop video here" : "Click or drag video to upload"}
                                         </p>
                                         <p className="text-sm text-muted-foreground font-medium">
-                                            {`MP4, MOV, WEBM, MP3 up to ${MAX_FILE_SIZE_LABEL} · YouTube links under ${MAX_YT_DURATION_LABEL}`}
+                                            {`MP4, MOV, WEBM, MP3 up to ${MAX_FILE_SIZE_LABEL}`}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground/60">
+                                            Takes 1–3 min depending on length
                                         </p>
                                     </div>
                                 </div>
@@ -343,7 +346,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                     </motion.p>
                                 ) : (
                                     <p className="text-[11px] text-muted-foreground/50 px-1">
-                                        Direct video URLs work best. YouTube links may be blocked by bot detection — if so, download the video and upload it.
+                                        {`YouTube videos must be under ${MAX_YT_DURATION_LABEL}. Links may be blocked by bot detection — if so, download the video and upload it.`}
                                     </p>
                                 )}
                             </form>
