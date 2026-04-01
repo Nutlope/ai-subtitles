@@ -196,20 +196,20 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
         return () => document.removeEventListener("keydown", handler);
     }, [activeId, subtitles, duration]);
 
-    // Copy transcript to clipboard
-    const handleCopyTranscript = async () => {
-        const text = subtitles.map(s => s.text).join("\n");
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-
     // Filtered subtitles based on search
     const filteredSubtitles = subtitles.filter(s => {
         if (showReviewQueue && s.confidence >= 0.8) return false;
         if (searchQuery && !s.text.toLowerCase().includes(searchQuery.toLowerCase())) return false;
         return true;
     });
+
+    // Copy transcript to clipboard
+    const handleCopyTranscript = async () => {
+        const text = filteredSubtitles.map(s => s.text).join("\n");
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     // Stats
     const totalWords = subtitles.reduce((acc, s) => acc + s.text.split(/\s+/).filter(Boolean).length, 0);
