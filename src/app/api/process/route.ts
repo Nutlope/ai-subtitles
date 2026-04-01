@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { isYoutubeUrl, downloadYoutubeVideo } from '@/lib/video-utils';
+import { isYoutubeUrl, downloadYoutubeVideo, getVideoDuration } from '@/lib/video-utils';
 import { rateLimit } from '@/lib/rate-limit';
+import { MAX_FILE_SIZE, MAX_FILE_SIZE_LABEL, MAX_YT_DURATION, MAX_YT_DURATION_LABEL } from '@/lib/limits';
 import fs from 'fs';
 import path from 'path';
 
@@ -44,10 +45,9 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: 'No file provided' }, { status: 400 });
             }
 
-            const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
             if (file.size > MAX_FILE_SIZE) {
                 return NextResponse.json(
-                    { error: 'File too large. Maximum size is 500MB.' },
+                    { error: `File too large. Maximum size is ${MAX_FILE_SIZE_LABEL}.` },
                     { status: 413 }
                 );
             }
@@ -112,6 +112,20 @@ export async function POST(req: NextRequest) {
                 const videoPath = path.join(baseTempDir, `${jobId}.mp4`);
                 console.log(`Downloading YouTube video for job ${jobId}...`);
                 await downloadYoutubeVideo(mediaUrl, videoPath);
+
+                // Check duration after download
+                try {
+                    const duration = await getVideoDuration(videoPath);
+                    if (duration > MAX_YT_DURATION) {
+                        fs.unlinkSync(videoPath);
+                        return NextResponse.json(
+                            { error: `YouTube video too long. Maximum duration is ${MAX_YT_DURATION_LABEL}.` },
+                            { status: 413 }
+                        );
+                    }
+                } catch (probeErr) {
+                    console.warn('Could not probe YouTube video duration, proceeding anyway:', probeErr);
+                }
 
                 return NextResponse.json({ jobId, status: 'success', type: 'url', ext: 'mp4' });
 

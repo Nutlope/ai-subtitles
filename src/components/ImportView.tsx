@@ -5,6 +5,7 @@ import { UploadCloud, Link as LinkIcon, ArrowRight, ArrowUp, GithubIcon } from "
 import SubtitleSimulator from "./SubtitleSimulator";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { MAX_FILE_SIZE, MAX_FILE_SIZE_LABEL, MAX_YT_DURATION_LABEL } from "@/lib/limits";
 
 
 interface ImportViewProps {
@@ -130,8 +131,16 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
         heroRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     };
 
-    const onDrop = useCallback((acceptedFiles: File[]) => {
+    const onDrop = useCallback((acceptedFiles: File[], fileRejections: unknown[]) => {
+        if (fileRejections && (fileRejections as Array<{ errors: Array<{ code: string }> }>).length > 0) {
+            const rejection = (fileRejections as Array<{ errors: Array<{ code: string }> }>)[0];
+            if (rejection.errors.some((e) => e.code === 'file-too-large')) {
+                setError(`File too large. Maximum size is ${MAX_FILE_SIZE_LABEL}.`);
+                return;
+            }
+        }
         if (acceptedFiles.length > 0) {
+            setError("");
             setVideoFile(acceptedFiles[0]);
             setYoutubeUrl(""); // Clear URL if file uploaded
             setIsSample(false);
@@ -149,6 +158,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
             'audio/wav': ['.wav'],
         },
         maxFiles: 1,
+        maxSize: MAX_FILE_SIZE,
         multiple: false
     });
 
@@ -280,7 +290,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                             {isDragActive ? "Drop video here" : "Click or drag video to upload"}
                                         </p>
                                         <p className="text-sm text-muted-foreground font-medium">
-                                            MP4, MOV, WEBM, MP3 up to 500MB · under 2 hours
+                                            {`MP4, MOV, WEBM, MP3 up to ${MAX_FILE_SIZE_LABEL} · YouTube links under ${MAX_YT_DURATION_LABEL}`}
                                         </p>
                                     </div>
                                 </div>
