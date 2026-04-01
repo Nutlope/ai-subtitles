@@ -72,6 +72,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
     const [isPlaying, setIsPlaying] = useState(false);
     const [showReviewQueue, setShowReviewQueue] = useState(false);
     const [activeId, setActiveId] = useState<number | null>(null);
+    const [nearestId, setNearestId] = useState<number | null>(null);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
 
@@ -151,6 +152,13 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
         };
     }, [isExportOpen]);
 
+    // Filtered subtitles based on search
+    const filteredSubtitles = subtitles.filter(s => {
+        if (showReviewQueue && s.confidence >= 0.8) return false;
+        if (searchQuery && !s.text.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        return true;
+    });
+
     // Keyboard shortcuts
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -170,9 +178,9 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                     break;
                 case "ArrowUp": {
                     e.preventDefault();
-                    const idx = subtitles.findIndex(s => s.id === activeId);
+                    const idx = filteredSubtitles.findIndex(s => s.id === activeId);
                     if (idx > 0) {
-                        const prev = subtitles[idx - 1];
+                        const prev = filteredSubtitles[idx - 1];
                         setActiveId(prev.id);
                         if (videoRef.current) videoRef.current.currentTime = parseTime(prev.start);
                         document.getElementById(`sub-${prev.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -181,9 +189,9 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                 }
                 case "ArrowDown": {
                     e.preventDefault();
-                    const idx = subtitles.findIndex(s => s.id === activeId);
-                    if (idx < subtitles.length - 1) {
-                        const next = subtitles[idx + 1];
+                    const idx = filteredSubtitles.findIndex(s => s.id === activeId);
+                    if (idx < filteredSubtitles.length - 1) {
+                        const next = filteredSubtitles[idx + 1];
                         setActiveId(next.id);
                         if (videoRef.current) videoRef.current.currentTime = parseTime(next.start);
                         document.getElementById(`sub-${next.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -194,7 +202,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
         };
         document.addEventListener("keydown", handler);
         return () => document.removeEventListener("keydown", handler);
-    }, [activeId, subtitles, duration]);
+    }, [activeId, filteredSubtitles, duration]);
 
     // Copy transcript to clipboard
     const handleCopyTranscript = async () => {
@@ -203,13 +211,6 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
-
-    // Filtered subtitles based on search
-    const filteredSubtitles = subtitles.filter(s => {
-        if (showReviewQueue && s.confidence >= 0.8) return false;
-        if (searchQuery && !s.text.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-        return true;
-    });
 
     // Stats
     const totalWords = subtitles.reduce((acc, s) => acc + s.text.split(/\s+/).filter(Boolean).length, 0);
@@ -225,16 +226,39 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
         const time = videoRef.current.currentTime;
         setCurrentTime(time);
 
-        const active = subtitles.find(s => {
+        const active = filteredSubtitles.find(s => {
             const startStr = parseTime(s.start);
             const endStr = parseTime(s.end);
             return time >= startStr && time <= endStr;
         });
 
-        if (active && active.id !== activeId) {
-            setActiveId(active.id);
-            const el = document.getElementById(`sub-${active.id}`);
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (active) {
+            if (active.id !== activeId) {
+                setActiveId(active.id);
+                setNearestId(null);
+                const el = document.getElementById(`sub-${active.id}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        } else if (filteredSubtitles.length > 0) {
+            // No exact match — find the closest filtered subtitle
+            setActiveId(null);
+            let closest = filteredSubtitles[0];
+            let closestDist = Infinity;
+            for (const s of filteredSubtitles) {
+                const start = parseTime(s.start);
+                const end = parseTime(s.end);
+                const mid = (start + end) / 2;
+                const dist = Math.abs(time - mid);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closest = s;
+                }
+            }
+            if (closest.id !== nearestId) {
+                setNearestId(closest.id);
+                const el = document.getElementById(`sub-${closest.id}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         }
     };
 
@@ -885,7 +909,9 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                                     "p-4 rounded-xl border transition-all duration-200 cursor-text group",
                                     activeId === sub.id
                                         ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-sm"
-                                        : "border-border hover:border-border/80 bg-card"
+                                        : nearestId === sub.id
+                                            ? "border-dashed border-primary/40 bg-primary/[0.02]"
+                                            : "border-border hover:border-border/80 bg-card"
                                 )}
                             >
                                 <div className="flex items-center justify-between mb-2">
@@ -916,7 +942,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                                 <textarea
                                     className={cn(
                                         "w-full bg-transparent resize-none outline-none leading-relaxed transition-colors duration-200",
-                                        activeId === sub.id ? "text-foreground" : "text-muted-foreground group-hover:text-foreground/80"
+                                        activeId === sub.id ? "text-foreground" : nearestId === sub.id ? "text-foreground/60" : "text-muted-foreground group-hover:text-foreground/80"
                                     )}
                                     rows={2}
                                     value={sub.text}
