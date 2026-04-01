@@ -85,6 +85,7 @@ export default function SubStudioApp() {
     const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [apiKeyModalVariant, setApiKeyModalVariant] = useState<"default" | "out-of-credits">("default");
     const [hasApiKey, setHasApiKey] = useState(false);
+    const [processingKey, setProcessingKey] = useState(0);
     const [freeUsed, setFreeUsed] = useState(false);
 
     const historyRef = useRef<HTMLDivElement>(null);
@@ -510,6 +511,7 @@ export default function SubStudioApp() {
                             className="flex-1 flex"
                         >
                             <ProcessingView
+                                key={processingKey}
                                 onNext={handleProcessingComplete}
                                 videoFile={videoFile}
                                 youtubeUrl={youtubeUrl}
@@ -589,7 +591,12 @@ export default function SubStudioApp() {
                 setIsApiKeyOpen(false);
                 setApiKeyModalVariant("default");
                 // Refresh credit state after modal closes (user may have added key)
-                setHasApiKey(!!localStorage.getItem("substudio_together_api_key"));
+                const keyNow = !!localStorage.getItem("substudio_together_api_key");
+                if (keyNow && !hasApiKey && step === "processing") {
+                    // API key was just added while on the out-of-credits screen — auto-retry
+                    setProcessingKey(k => k + 1);
+                }
+                setHasApiKey(keyNow);
             }} variant={apiKeyModalVariant} />
         </div>
     );
