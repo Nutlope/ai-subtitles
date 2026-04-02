@@ -7,7 +7,7 @@ import Image from "next/image";
 interface ProcessingViewProps {
     onNext: (jobId: string) => void;
     videoFile: File | null;
-    youtubeUrl: string;
+    mediaUrl: string;
     setJobId: (id: string) => void;
     setSrtContent: (srt: string) => void;
     setWords: (words: unknown[]) => void;
@@ -52,7 +52,7 @@ const checkPop = {
     },
 };
 
-export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId, setSrtContent, setWords, isSample, onOutOfCredits, onReset, setBlobUrl }: ProcessingViewProps) {
+export default function ProcessingView({ onNext, videoFile, mediaUrl, setJobId, setSrtContent, setWords, isSample, onOutOfCredits, onReset, setBlobUrl }: ProcessingViewProps) {
     const [currentStage, setCurrentStage] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const hasStarted = useRef(false);
@@ -125,11 +125,11 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                             body: formData,
                         });
                     }
-                } else if (youtubeUrl) {
+                } else if (mediaUrl) {
                     processResponse = await fetch("/api/process", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ youtubeUrl }),
+                        body: JSON.stringify({ mediaUrl }),
                     });
                 } else {
                     throw new Error("No video provided");
@@ -151,7 +151,6 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
                 const jobId = processData.jobId;
                 setJobId(jobId);
 
-                // YouTube downloads return a blobUrl from the server
                 if (!blobUrl && processData.blobUrl) {
                     blobUrl = processData.blobUrl;
                     setBlobUrl(blobUrl);
@@ -203,7 +202,7 @@ export default function ProcessingView({ onNext, videoFile, youtubeUrl, setJobId
         };
 
         processVideo();
-    }, [videoFile, youtubeUrl, setJobId, setSrtContent, setWords, onNext]);
+    }, [videoFile, mediaUrl, isSample, onNext, onOutOfCredits, setBlobUrl, setJobId, setSrtContent, setWords]);
 
     const isComplete = currentStage >= stages.length;
     const isProcessing = currentStage < stages.length && !error;

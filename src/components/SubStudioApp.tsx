@@ -76,7 +76,7 @@ export default function SubStudioApp() {
 
     // Shared state
     const [videoFile, setVideoFile] = useState<File | null>(null);
-    const [youtubeUrl, setYoutubeUrl] = useState<string>("");
+    const [mediaUrl, setMediaUrl] = useState<string>("");
     const [jobId, setJobId] = useState<string>("");
     const [srtContent, setSrtContent] = useState<string>("");
     const [words, setWords] = useState<unknown[]>([]);
@@ -110,7 +110,7 @@ export default function SubStudioApp() {
     // Save job data + update URL when entering editor
     useEffect(() => {
         if (step === "editor" && jobId && srtContent) {
-            const source = videoFile?.name || youtubeUrl || "Unknown";
+            const source = videoFile?.name || mediaUrl || "Unknown";
             saveJobData(jobId, { srtContent, words, stylePreset, source, isSample });
             window.history.replaceState(null, "", `?jobId=${jobId}`);
         }
@@ -189,11 +189,6 @@ export default function SubStudioApp() {
             return source.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
         }
 
-        // YouTube URL — extract readable part
-        if (source.includes('youtube.com') || source.includes('youtu.be')) {
-            return "YouTube video";
-        }
-
         // Direct URL — use filename from path
         try {
             const url = new URL(source);
@@ -232,7 +227,7 @@ export default function SubStudioApp() {
 
     const resetApp = () => {
         setVideoFile(null);
-        setYoutubeUrl("");
+        setMediaUrl("");
         setJobId("");
         setSrtContent("");
         setWords([]);
@@ -244,7 +239,7 @@ export default function SubStudioApp() {
     };
 
     const handleProcessingComplete = (completedJobId: string) => {
-        const source = videoFile?.name || youtubeUrl || "Unknown";
+        const source = videoFile?.name || mediaUrl || "Unknown";
         saveToHistory(completedJobId, source);
         // Refresh credit state after processing
         setHasApiKey(!!localStorage.getItem("substudio_together_api_key"));
@@ -497,7 +492,7 @@ export default function SubStudioApp() {
                             <ImportView
                                 onNext={() => setStep("processing")}
                                 setVideoFile={setVideoFile}
-                                setYoutubeUrl={setYoutubeUrl}
+                                setMediaUrl={setMediaUrl}
                                 setIsSample={setIsSample}
                             />
                         </motion.div>
@@ -515,7 +510,7 @@ export default function SubStudioApp() {
                                 key={processingKey}
                                 onNext={handleProcessingComplete}
                                 videoFile={videoFile}
-                                youtubeUrl={youtubeUrl}
+                                mediaUrl={mediaUrl}
                                 setJobId={setJobId}
                                 setSrtContent={setSrtContent}
                                 setWords={setWords}

@@ -2,61 +2,8 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import fs from 'fs';
 import path from 'path';
-import { Writable } from 'stream';
-import { pipeline } from 'stream/promises';
-import { Readable } from 'stream';
 
 ffmpeg.setFfmpegPath(ffmpegPath.path);
-
-/* ── YouTube helpers ── */
-
-const YTDOWNLOAD_URL = 'https://www.ytdownload.io/api/download';
-
-export function isYoutubeUrl(url: string): boolean {
-    return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/.test(url);
-}
-
-/**
- * Downloads a YouTube video via ytdownload.io and streams it to disk.
- */
-export async function downloadYoutubeVideo(url: string, outputPath: string): Promise<void> {
-    const dir = path.dirname(outputPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-    console.log(`[ytdownload] Downloading: ${url}`);
-
-    const res = await fetch(YTDOWNLOAD_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.YTDOWNLOAD_API_KEY}` },
-        body: JSON.stringify({ url }),
-    });
-
-    if (!res.ok || !res.body) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`ytdownload failed (${res.status}): ${text}`);
-    }
-
-    const fileStream = fs.createWriteStream(outputPath);
-    await pipeline(Readable.fromWeb(res.body as never), fileStream);
-
-    if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size === 0) {
-        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-        throw new Error('ytdownload returned an empty file');
-    }
-
-    console.log(`[ytdownload] Download complete: ${outputPath} (${fs.statSync(outputPath).size} bytes)`);
-}
-
-/* ── Duration check ── */
-
-export function getVideoDuration(filePath: string): Promise<number> {
-    return new Promise((resolve, reject) => {
-        ffmpeg.ffprobe(filePath, (err, metadata) => {
-            if (err) return reject(err);
-            resolve(metadata.format.duration ?? 0);
-        });
-    });
-}
 
 /* ── FFmpeg utilities ── */
 

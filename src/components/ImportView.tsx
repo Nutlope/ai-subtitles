@@ -5,13 +5,13 @@ import { UploadCloud, Link as LinkIcon, ArrowRight, ArrowUp, GithubIcon } from "
 import SubtitleSimulator from "./SubtitleSimulator";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { MAX_FILE_SIZE, MAX_FILE_SIZE_LABEL, MAX_YT_DURATION_LABEL } from "@/lib/limits";
+import { MAX_FILE_SIZE, MAX_FILE_SIZE_LABEL } from "@/lib/limits";
 
 
 interface ImportViewProps {
     onNext: () => void;
     setVideoFile: (file: File | null) => void;
-    setYoutubeUrl: (url: string) => void;
+    setMediaUrl: (url: string) => void;
     setIsSample: (v: boolean) => void;
 }
 
@@ -122,7 +122,7 @@ const STATS = [
     },
 ];
 
-export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsSample }: ImportViewProps) {
+export default function ImportView({ onNext, setVideoFile, setMediaUrl, setIsSample }: ImportViewProps) {
     const [url, setUrl] = useState("");
     const [error, setError] = useState("");
     const heroRef = useRef<HTMLDivElement>(null);
@@ -142,11 +142,11 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
         if (acceptedFiles.length > 0) {
             setError("");
             setVideoFile(acceptedFiles[0]);
-            setYoutubeUrl(""); // Clear URL if file uploaded
+            setMediaUrl(""); // Clear URL if file uploaded
             setIsSample(false);
             onNext();
         }
-    }, [setVideoFile, setYoutubeUrl, setIsSample, onNext]);
+    }, [setVideoFile, setMediaUrl, setIsSample, onNext]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -164,20 +164,18 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
 
     const handleUrlSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!url.trim()) return;
+        const trimmedUrl = url.trim();
+        if (!trimmedUrl) return;
 
-        // Broad URL validation — accept YouTube, youtu.be, and direct video URLs
-        const ytRegex = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)?(youtube\.com|youtu\.be)\/.+$/;
-        const videoUrlRegex = /^https?:\/\/.+\.(mp4|webm|mov)(\?.*)?$/i;
-        const genericUrl = /^https?:\/\/.+/;
+        const mediaUrlRegex = /^https?:\/\/.+\.(mp4|webm|mov|mp3|wav)(\?.*)?$/i;
 
-        if (!ytRegex.test(url) && !videoUrlRegex.test(url) && !genericUrl.test(url)) {
-            setError("Please enter a valid YouTube or video URL");
+        if (!mediaUrlRegex.test(trimmedUrl)) {
+            setError("Please enter a direct MP4, MOV, WEBM, MP3, or WAV URL");
             return;
         }
 
         setError("");
-        setYoutubeUrl(url);
+        setMediaUrl(trimmedUrl);
         setVideoFile(null); // Clear file if URL provided
         setIsSample(false);
         onNext();
@@ -257,7 +255,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                         variants={headlineChild}
                         className="text-muted-foreground text-lg mt-5 font-light max-w-lg mx-auto"
                     >
-                        Upload your video or paste a YouTube link. Our AI handles the transcription, alignment, and styling instantly.
+                        Upload your video or paste a direct media link. Our AI handles the transcription, alignment, and styling instantly.
                     </motion.p>
                 </motion.div>
 
@@ -308,7 +306,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                 </div>
                             </div>
 
-                            {/* YouTube Link Input */}
+                            {/* Direct media URL input */}
                             <form onSubmit={handleUrlSubmit} className="space-y-4">
                                 <div className="flex flex-col sm:flex-row gap-3">
                                     <div className="relative flex-1 group">
@@ -317,7 +315,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                         </div>
                                         <input
                                             type="text"
-                                            placeholder="Paste YouTube or MP4 link..."
+                                            placeholder="Paste MP4, MOV, WEBM, MP3, or WAV link..."
                                             aria-label="Video URL"
                                             className="w-full pl-12 pr-4 py-3.5 bg-muted/30 border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary focus:bg-background transition-all duration-300 shadow-sm text-foreground font-medium"
                                             value={url}
@@ -346,7 +344,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                     </motion.p>
                                 ) : (
                                     <p className="text-[11px] text-muted-foreground/50 px-1">
-                                        {`YouTube videos must be under ${MAX_YT_DURATION_LABEL}. Links may be blocked by bot detection — if so, download the video and upload it.`}
+                                        Direct media links must end with `.mp4`, `.mov`, `.webm`, `.mp3`, or `.wav`.
                                     </p>
                                 )}
                             </form>
@@ -366,7 +364,7 @@ export default function ImportView({ onNext, setVideoFile, setYoutubeUrl, setIsS
                                 type="button"
                                 onClick={() => {
                                     const sampleUrl = `${window.location.origin}/sample-demo.mp4`;
-                                    setYoutubeUrl(sampleUrl);
+                                    setMediaUrl(sampleUrl);
                                     setVideoFile(null);
                                     setIsSample(true);
                                     onNext();

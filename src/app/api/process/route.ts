@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { isYoutubeUrl, downloadYoutubeVideo, getVideoDuration } from '@/lib/video-utils';
 import { rateLimit } from '@/lib/rate-limit';
-import { MAX_FILE_SIZE, MAX_FILE_SIZE_LABEL, MAX_YT_DURATION, MAX_YT_DURATION_LABEL } from '@/lib/limits';
-import { put } from '@vercel/blob';
+import { MAX_FILE_SIZE, MAX_FILE_SIZE_LABEL } from '@/lib/limits';
 import fs from 'fs';
 import path from 'path';
 
@@ -63,15 +61,15 @@ export async function POST(req: NextRequest) {
 
         } else if (contentType.includes('application/json')) {
             const body = await req.json();
-            const { youtubeUrl, blobUrl } = body;
-            const mediaUrl = blobUrl || youtubeUrl;
+            const { mediaUrl, blobUrl } = body;
+            const sourceUrl = blobUrl || mediaUrl;
 
-            if (!mediaUrl) {
+            if (!sourceUrl) {
                 return NextResponse.json({ error: 'No URL provided' }, { status: 400 });
             }
 
-            // Detect URL type: direct media file, blob upload, or YouTube
-            const urlLower = mediaUrl.toLowerCase();
+            // Detect URL type: direct media file or blob upload
+            const urlLower = sourceUrl.toLowerCase();
             const isBlobUpload = urlLower.includes('.blob.vercel-storage.com') || urlLower.includes('.blob.core.windows.net');
             const isDirectMedia = /\.(mp4|webm|mov|mp3|wav)(\?.*)?$/i.test(urlLower) || isBlobUpload;
 
@@ -88,7 +86,7 @@ export async function POST(req: NextRequest) {
                 const filePath = path.join(baseTempDir, `${jobId}.${urlExt}`);
 
                 console.log(`Fetching direct URL for job ${jobId}...`);
-                const response = await fetch(mediaUrl, { cache: 'no-store' });
+                const response = await fetch(sourceUrl, { cache: 'no-store' });
                 if (!response.ok) {
                     throw new Error(`Failed to fetch media: ${response.statusText}`);
                 }
@@ -109,44 +107,9 @@ export async function POST(req: NextRequest) {
 
                 return NextResponse.json({ jobId, status: 'success', type: 'url', ext: urlExt });
 
-            } else if (isYoutubeUrl(mediaUrl)) {
-                const videoPath = path.join(baseTempDir, `${jobId}.mp4`);
-                console.log(`Downloading YouTube video for job ${jobId}...`);
-                await downloadYoutubeVideo(mediaUrl, videoPath);
-
-                // Check duration after download
-                try {
-                    const duration = await getVideoDuration(videoPath);
-                    if (duration > MAX_YT_DURATION) {
-                        fs.unlinkSync(videoPath);
-                        return NextResponse.json(
-                            { error: `YouTube video too long. Maximum duration is ${MAX_YT_DURATION_LABEL}.` },
-                            { status: 413 }
-                        );
-                    }
-                } catch (probeErr) {
-                    console.warn('Could not probe YouTube video duration, proceeding anyway:', probeErr);
-                }
-
-                // Upload to Vercel Blob so the file survives across serverless invocations
-                let blobUrl: string | undefined;
-                try {
-                    const fileBuffer = fs.readFileSync(videoPath);
-                    const blob = await put(`yt-${jobId}.mp4`, fileBuffer, {
-                        access: 'private',
-                        contentType: 'video/mp4',
-                    });
-                    blobUrl = blob.url;
-                    console.log(`YouTube video for job ${jobId} uploaded to Blob`);
-                } catch (blobErr) {
-                    console.warn('Could not upload YouTube video to Blob, video may not persist across requests:', blobErr);
-                }
-
-                return NextResponse.json({ jobId, status: 'success', type: 'url', ext: 'mp4', ...(blobUrl && { blobUrl }) });
-
             } else {
                 return NextResponse.json(
-                    { error: 'Unsupported URL. Please provide a YouTube link or a direct video/audio URL.' },
+                    { error: 'Unsupported URL. Please provide a direct video or audio URL.' },
                     { status: 400 }
                 );
             }
