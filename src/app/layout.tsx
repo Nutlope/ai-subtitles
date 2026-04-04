@@ -29,7 +29,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://substudio.vercel.app"),
+  metadataBase: new URL("https://ai-subtitles-rosy.vercel.app"),
   title: "SubStudio",
   description: "The fastest way to caption your videos — powered by Together AI",
   icons: {
