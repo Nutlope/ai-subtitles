@@ -4,7 +4,7 @@
  * Usage:  npx tsx scripts/bench-burn-remote.ts [url]
  */
 
-const BASE_URL = process.argv[2] || "https://ai-subtitles-rosy.vercel.app";
+const BASE_URL = process.argv[2] || "https://www.usesubstudio.com/";
 
 const SRT_CONTENT = `1
 00:00:00,000 --> 00:00:05,000
@@ -104,7 +104,9 @@ async function main() {
   console.log("");
   console.log(`Elapsed:     ${elapsed}s`);
   console.log(`Output size: ${(videoBytes / 1024 / 1024).toFixed(2)} MB`);
-  console.log(`Speed:       ${(60 / parseFloat(elapsed)).toFixed(2)}x realtime`);
+  console.log(
+    `Speed:       ${(60 / parseFloat(elapsed)).toFixed(2)}x realtime`,
+  );
 }
 
 main().catch((err) => {
