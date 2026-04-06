@@ -60,7 +60,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <PlausibleProvider src="https://plausible.io/js/pa-UCqvzP3FMGGMoNCCwYm4G.js" />
+        <PlausibleProvider domain="usesubstudio.com" />
       </head>
       <body
         className={`${inter.variable} ${outfit.variable} ${geistMono.variable} antialiased`}
