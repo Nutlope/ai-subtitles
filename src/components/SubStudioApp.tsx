@@ -8,6 +8,7 @@ import ProcessingView from "./ProcessingView";
 import EditorView from "./EditorView";
 import Logo from "./Logo";
 import ApiKeyModal from "./ApiKeyModal";
+import { AI_CONFIG } from "@/lib/ai-config";
 import Image from "next/image";
 import { KeyRound, History, Check, Trash2, Clock, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,15 +36,7 @@ function loadJobData(jId: string): { srtContent: string; words: unknown[]; style
     try { return JSON.parse(raw); } catch { return null; }
 }
 
-const TOGETHER_TIPS = [
-    "Powered by Together AI — the fastest inference cloud",
-    "Together AI runs Whisper Large v3 up to 15× faster than alternatives",
-    "Together AI — 200+ open-source models, one simple API",
-    "Build with Llama, Mixtral, Whisper & more on Together AI",
-    "From prototype to production at any scale — together.ai",
-    "The leading cloud platform for open-source AI inference",
-    "Together AI — Build, fine-tune, and scale generative AI",
-];
+const TOGETHER_TIPS = AI_CONFIG.branding.tips;
 
 /* ── Framer Motion page transition variants ── */
 const pageVariants = {

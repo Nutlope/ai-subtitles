@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, Circle, AlertCircle, KeyRound, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AI_CONFIG } from "@/lib/ai-config";
 import Image from "next/image";
 
 interface ProcessingViewProps {
@@ -56,13 +57,45 @@ export default function ProcessingView({ onNext, videoFile, mediaUrl, setJobId, 
     const [currentStage, setCurrentStage] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const hasStarted = useRef(false);
+    const [stageStartTimes, setStageStartTimes] = useState<Record<number, number>>({});
+    const [stageElapsed, setStageElapsed] = useState<Record<number, number>>({});
+    const [now, setNow] = useState(performance.now());
 
     const stages = [
         { id: "ingest", label: "Ingesting video" },
         { id: "extract", label: "Extracting audio" },
-        { id: "transcribe", label: "Transcribing with AI (Whisper Large v3)" },
+        { id: "transcribe", label: AI_CONFIG.branding.processingLabel },
         { id: "format", label: "Formatting subtitles" },
     ];
+
+    // Tick the live timer for the active stage
+    useEffect(() => {
+        if (error || currentStage >= stages.length) return;
+        const id = setInterval(() => setNow(performance.now()), 50);
+        return () => clearInterval(id);
+    }, [error, currentStage, stages.length]);
+
+    // Record start time when stage changes and finalize all previous stages
+    useEffect(() => {
+        const t = performance.now();
+        setStageStartTimes(prev => {
+            if (prev[currentStage] != null) return prev;
+            return { ...prev, [currentStage]: t };
+        });
+        if (currentStage > 0) {
+            setStageElapsed(prev => {
+                const updated = { ...prev };
+                for (let i = 0; i < currentStage; i++) {
+                    if (updated[i] != null) continue;
+                    const startT = stageStartTimes[i];
+                    if (startT == null) continue;
+                    updated[i] = t - startT;
+                }
+                return updated;
+            });
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentStage]);
 
     useEffect(() => {
         if (hasStarted.current) return;
@@ -156,16 +189,14 @@ export default function ProcessingView({ onNext, videoFile, mediaUrl, setJobId, 
                     setBlobUrl(blobUrl);
                 }
 
-                // Stages 1-3 handled by /api/transcribe
-                setCurrentStage(1);
-
+                // Stages 1-3: stream events from /api/transcribe
                 const transcribeResponse = await fetch("/api/transcribe", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ jobId, apiKey, blobUrl }),
                 });
 
-                if (!transcribeResponse.ok) {
+                if (!transcribeResponse.ok || !transcribeResponse.body) {
                     const text = await transcribeResponse.text();
                     let errorMessage = "Failed to transcribe audio";
                     try {
@@ -174,16 +205,51 @@ export default function ProcessingView({ onNext, videoFile, mediaUrl, setJobId, 
                     } catch {
                         errorMessage = `Server returned an error: ${transcribeResponse.status} ${transcribeResponse.statusText}. Response: ${text.substring(0, 100)}`;
                     }
-
                     if (transcribeResponse.status === 401) {
                         throw new Error("Missing Together AI API Key! Please enter it via the key icon at the top right, or set TOGETHER_API_KEY in your .env file.");
                     }
                     throw new Error(errorMessage);
                 }
 
-                const transcribeData = await transcribeResponse.json();
-                setSrtContent(transcribeData.srtContent);
-                setWords(transcribeData.words);
+                const stageIndexMap: Record<string, number> = { extract: 1, transcribe: 2, format: 3 };
+                const reader = transcribeResponse.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+                let finalData: { srtContent?: string; words?: unknown[] } | null = null;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || "";
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        const event = JSON.parse(line);
+
+                        if (event.error) {
+                            throw new Error(event.error);
+                        }
+
+                        if (event.stage && event.stage !== 'done') {
+                            const idx = stageIndexMap[event.stage];
+                            if (idx !== undefined) setCurrentStage(idx);
+                        }
+
+                        if (event.stage === 'done') {
+                            finalData = { srtContent: event.srtContent, words: event.words };
+                        }
+                    }
+                }
+
+                if (!finalData?.srtContent) {
+                    throw new Error("No transcription data received");
+                }
+
+                setSrtContent(finalData.srtContent);
+                setWords(finalData.words || []);
 
                 if (!apiKey && !isSample) {
                     localStorage.setItem("substudio_free_used", "true");
@@ -360,8 +426,8 @@ export default function ProcessingView({ onNext, videoFile, mediaUrl, setJobId, 
                             >
                                 <span className="text-xs text-muted-foreground/60">Powered by</span>
                                 <Image
-                                    src="/together-ai-new-logo.png"
-                                    alt="Together AI"
+                                    src={AI_CONFIG.branding.logoSrc}
+                                    alt={AI_CONFIG.api.platform}
                                     width={80}
                                     height={18}
                                     className="opacity-50 object-contain"
@@ -426,10 +492,34 @@ export default function ProcessingView({ onNext, videoFile, mediaUrl, setJobId, 
                                     </AnimatePresence>
                                 </div>
                                 <span className={cn(
-                                    "font-medium text-sm sm:text-base transition-colors duration-300",
+                                    "font-medium text-sm sm:text-base transition-colors duration-300 flex items-center gap-2",
                                     isCompleted ? "text-foreground" : isCurrent ? "text-primary" : error && currentStage === index ? "text-destructive" : "text-muted-foreground"
                                 )}>
                                     {stage.label}
+                                    {(() => {
+                                        const finalMs = stageElapsed[index];
+                                        const startT = stageStartTimes[index];
+                                        if (finalMs != null) {
+                                            return (
+                                                <motion.span
+                                                    initial={{ opacity: 0, scale: 0.8 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums bg-green-500/10 text-green-500"
+                                                >
+                                                    {(finalMs / 1000).toFixed(1)}s
+                                                </motion.span>
+                                            );
+                                        }
+                                        if (isCurrent && startT) {
+                                            const elapsed = (now - startT) / 1000;
+                                            return (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums bg-primary/10 text-primary">
+                                                    {elapsed.toFixed(1)}s
+                                                </span>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </span>
                             </motion.div>
                         );

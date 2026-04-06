@@ -6,6 +6,7 @@ import SubtitleSimulator from "./SubtitleSimulator";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { MAX_FILE_SIZE, MAX_FILE_SIZE_LABEL } from "@/lib/limits";
+import { AI_CONFIG } from "@/lib/ai-config";
 
 
 interface ImportViewProps {
@@ -225,7 +226,7 @@ export default function ImportView({ onNext, setVideoFile, setMediaUrl, setIsSam
                             />
                         ))}
                     </div>
-                    <span>Powered by Together AI x Whisper</span>
+                    <span>{AI_CONFIG.branding.poweredBy}</span>
                 </motion.div>
 
                 {/* Hero text — staggered headline entrance */}
@@ -514,7 +515,7 @@ export default function ImportView({ onNext, setVideoFile, setMediaUrl, setIsSam
                                 height={16}
                                 className="opacity-50 group-hover:opacity-100 transition-opacity"
                             />
-                            <span className="text-xs font-medium">Powered by Together AI</span>
+                            <span className="text-xs font-medium">{AI_CONFIG.branding.poweredBy}</span>
                         </a>
 
                         {/* Center / Right — Links */}
