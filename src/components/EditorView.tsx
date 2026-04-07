@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, ListTodo, AlertTriangle, MonitorPlay, Download, ChevronDown, Loader2, CheckCircle2, Search, Copy, Check } from "lucide-react";
+import { Play, Pause, ListTodo, AlertTriangle, MonitorPlay, Download, ChevronDown, Loader2, CheckCircle2, Search, Copy, Check, ArrowLeftRight, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Tooltip from "./Tooltip";
 
 interface Subtitle {
     id: number;
@@ -37,6 +38,20 @@ function formatTime(seconds: number): string {
     const ms = String(Math.floor((seconds % 1) * 1000)).padStart(3, '0');
     return `${hh}:${mm}:${ss},${ms}`;
 }
+
+function shiftTime(timeStr: string, deltaMs: number): string {
+    const seconds = parseTime(timeStr) + deltaMs / 1000;
+    return formatTime(Math.max(0, seconds));
+}
+
+/* ── Aspect ratio options ── */
+const aspectRatios = [
+    { id: "original", label: "Auto", ratio: null },
+    { id: "16:9", label: "16:9", ratio: 16 / 9 },
+    { id: "9:16", label: "9:16", ratio: 9 / 16 },
+    { id: "1:1", label: "1:1", ratio: 1 },
+    { id: "4:5", label: "4:5", ratio: 4 / 5 },
+] as const;
 
 /* ── Animation variants ── */
 const panelSlideLeft = {
@@ -98,9 +113,15 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
     const videoRef = useRef<HTMLVideoElement>(null);
     const exportRef = useRef<HTMLDivElement>(null);
 
-    // Search & copy state
+    // Search, copy, find-replace state
     const [searchQuery, setSearchQuery] = useState("");
     const [copied, setCopied] = useState(false);
+    const [showFindReplace, setShowFindReplace] = useState(false);
+    const [findText, setFindText] = useState("");
+    const [replaceText, setReplaceText] = useState("");
+
+    // Aspect ratio state
+    const [aspectRatio, setAspectRatio] = useState<string>("original");
 
     const stylePresets = [
         { id: "classic", name: "Classic", desc: "Standard bottom text" },
@@ -220,6 +241,14 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
     const statsMins = Math.floor(totalDurationSec / 60);
     const statsSecs = Math.floor(totalDurationSec % 60);
 
+    // Find & replace match count
+    const findMatchCount = findText
+        ? subtitles.reduce((count, s) => {
+            const regex = new RegExp(findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            return count + (s.text.match(regex)?.length ?? 0);
+        }, 0)
+        : 0;
+
     // Handle Time Update
     const handleTimeUpdate = () => {
         if (!videoRef.current) return;
@@ -323,6 +352,32 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
         return newSrt;
     };
 
+    const shiftAllTimings = (deltaMs: number) => {
+        const newSubs = subtitles.map(s => ({
+            ...s,
+            start: shiftTime(s.start, deltaMs),
+            end: shiftTime(s.end, deltaMs),
+        }));
+        setSubtitles(newSubs);
+        const newSrt = newSubs.map(s => `${s.id}\n${s.start} --> ${s.end}\n${s.text}\n`).join('\n');
+        setSrtContent(newSrt);
+        const label = deltaMs > 0 ? `+${deltaMs}ms` : `${deltaMs}ms`;
+        showToast(`Shifted all subtitles by ${label}`);
+    };
+
+    const handleReplaceAll = () => {
+        if (!findText || findMatchCount === 0) return;
+        const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escaped, 'gi');
+        const newSubs = subtitles.map(s => ({ ...s, text: s.text.replace(regex, replaceText) }));
+        setSubtitles(newSubs);
+        const newSrt = newSubs.map(s => `${s.id}\n${s.start} --> ${s.end}\n${s.text}\n`).join('\n');
+        setSrtContent(newSrt);
+        showToast(`Replaced ${findMatchCount} occurrence${findMatchCount !== 1 ? 's' : ''}`);
+        setFindText("");
+        setReplaceText("");
+    };
+
     const handleDownload = async (type: string) => {
         try {
             setDownloading(type);
@@ -344,7 +399,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                 const res = await fetch("/api/burn", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ jobId, srtContent: latestSrt, stylePreset, targetHeight: upscaleTarget, isSample, blobUrl })
+                    body: JSON.stringify({ jobId, srtContent: latestSrt, stylePreset, targetHeight: upscaleTarget, aspectRatio: aspectRatio !== "original" ? aspectRatio : undefined, isSample, blobUrl })
                 });
 
                 if (!res.ok) {
@@ -549,7 +604,11 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                         initial={{ opacity: 0, scale: 0.96 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
-                        className="w-full max-w-4xl aspect-video bg-black rounded-lg shadow-xl overflow-hidden relative flex items-center justify-center group ring-1 ring-border"
+                        className={cn(
+                            "w-full bg-black rounded-lg shadow-xl overflow-hidden relative flex items-center justify-center group ring-1 ring-border",
+                            aspectRatio === "9:16" ? "max-w-xs" : aspectRatio === "1:1" ? "max-w-xl" : aspectRatio === "4:5" ? "max-w-md" : "max-w-4xl"
+                        )}
+                        style={{ aspectRatio: aspectRatio !== "original" ? aspectRatios.find(r => r.id === aspectRatio)?.ratio ?? 16/9 : 16/9 }}
                     >
                         {videoUrl ? (
                             <video
@@ -644,6 +703,14 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                         ))}
                     </div>
                 </motion.div>
+
+                {/* Keyboard shortcut hints */}
+                <div className="px-6 py-2 text-[10px] text-muted-foreground/40 text-center border-t border-border/20 flex items-center justify-center gap-3">
+                    <span><kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-[9px] font-mono">Space</kbd> Play/Pause</span>
+                    <span><kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-[9px] font-mono">J</kbd> -5s</span>
+                    <span><kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-[9px] font-mono">L</kbd> +5s</span>
+                    <span><kbd className="bg-muted/50 px-1 py-0.5 rounded text-[9px] font-mono">&#8593;&#8595;</kbd> Navigate</span>
+                </div>
             </motion.div>
 
             {/* Right Panel: Editor */}
@@ -673,7 +740,7 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                                 )}
                             </button>
                             {subtitles.length > 0 && (
-                                <span className="text-[11px] text-muted-foreground/60 font-mono tabular-nums ml-1 hidden lg:inline">
+                                <span className="text-[11px] text-muted-foreground/60 font-mono tabular-nums ml-1 hidden md:inline">
                                     {subtitles.length} subs · {totalWords} words · {statsMins}m {String(statsSecs).padStart(2, "0")}s
                                 </span>
                             )}
@@ -681,14 +748,15 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
 
                         <div className="flex items-center gap-2">
                             {/* Copy transcript */}
-                            <motion.button
-                                onClick={handleCopyTranscript}
-                                whileTap={{ scale: 0.95 }}
-                                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
-                                title="Copy transcript"
-                            >
-                                {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                            </motion.button>
+                            <Tooltip label={copied ? "Copied!" : "Copy transcript"}>
+                                <motion.button
+                                    onClick={handleCopyTranscript}
+                                    whileTap={{ scale: 0.95 }}
+                                    className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+                                >
+                                    {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                                </motion.button>
+                            </Tooltip>
 
                             {/* Export Button with Dropdown */}
                             <div className="relative" ref={exportRef}>
@@ -845,38 +913,29 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                                             {downloading === "mp4" && !burnProgress && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
                                         </motion.button>
 
-                                        {/* Upscale option — only show if video is below 1080p */}
-                                        {videoHeight > 0 && videoHeight < 1080 && (
-                                            <>
-                                                <div className="mx-4 my-1 border-t border-border/50" />
-                                                <div className="px-4 py-3">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <span className="text-xs font-semibold text-foreground">Enhance Resolution</span>
-                                                        <span className="text-[10px] text-muted-foreground ml-auto">{videoHeight}p current</span>
-                                                    </div>
-                                                    <div className="flex gap-1.5">
-                                                        {[
-                                                            { label: "Original", value: null },
-                                                            ...(videoHeight < 720 ? [{ label: "720p", value: 720 }] : []),
-                                                            ...(videoHeight < 1080 ? [{ label: "1080p", value: 1080 }] : []),
-                                                        ].map((opt) => (
-                                                            <button
-                                                                key={opt.label}
-                                                                onClick={() => setUpscaleTarget(opt.value)}
-                                                                className={cn(
-                                                                    "flex-1 text-[11px] font-medium py-1.5 rounded-md border transition-all",
-                                                                    upscaleTarget === opt.value
-                                                                        ? "border-primary bg-primary/10 text-primary"
-                                                                        : "border-border text-muted-foreground hover:border-primary/40"
-                                                                )}
-                                                            >
-                                                                {opt.label}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
+                                        {/* Aspect Ratio selector */}
+                                        <div className="mx-4 my-1 border-t border-border/50" />
+                                        <div className="px-4 py-3">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-xs font-semibold text-foreground">Aspect Ratio</span>
+                                            </div>
+                                            <div className="flex gap-1.5">
+                                                {aspectRatios.map((opt) => (
+                                                    <button
+                                                        key={opt.id}
+                                                        onClick={() => setAspectRatio(opt.id)}
+                                                        className={cn(
+                                                            "flex-1 text-[11px] font-medium py-1.5 rounded-md border transition-all",
+                                                            aspectRatio === opt.id
+                                                                ? "border-primary bg-primary/10 text-primary"
+                                                                : "border-border text-muted-foreground hover:border-primary/40"
+                                                        )}
+                                                    >
+                                                        {opt.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </div>
                                 </motion.div>
                             )}
@@ -885,18 +944,103 @@ export default function EditorView({ onNewProject: _onNewProject, jobId, srtCont
                         </div>
                     </div>
 
-                    {/* Search bar */}
+                    {/* Search bar + Find & Replace */}
                     {subtitles.length > 0 && (
                         <div className="px-4 py-2 border-t border-border/40">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-                                <input
-                                    type="text"
-                                    placeholder="Search subtitles..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-8 pr-3 py-1.5 text-sm bg-muted/30 border border-border/50 rounded-lg outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition-all text-foreground placeholder:text-muted-foreground/40"
-                                />
+                            <div className="flex items-center gap-2">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search subtitles..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-8 pr-3 py-1.5 text-sm bg-muted/30 border border-border/50 rounded-lg outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition-all text-foreground placeholder:text-muted-foreground/40"
+                                    />
+                                </div>
+                                <Tooltip label="Find & Replace">
+                                    <button
+                                        onClick={() => setShowFindReplace(!showFindReplace)}
+                                        className={cn(
+                                            "p-1.5 rounded-md transition-colors shrink-0",
+                                            showFindReplace ? "bg-primary/10 text-primary" : "text-muted-foreground/50 hover:text-foreground hover:bg-muted/50"
+                                        )}
+                                    >
+                                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                                    </button>
+                                </Tooltip>
+                            </div>
+
+                            <AnimatePresence>
+                                {showFindReplace && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="pt-2 space-y-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Find..."
+                                                value={findText}
+                                                onChange={(e) => setFindText(e.target.value)}
+                                                className="w-full px-3 py-1.5 text-sm bg-muted/30 border border-border/50 rounded-lg outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition-all text-foreground placeholder:text-muted-foreground/40"
+                                            />
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Replace with..."
+                                                    value={replaceText}
+                                                    onChange={(e) => setReplaceText(e.target.value)}
+                                                    className="flex-1 px-3 py-1.5 text-sm bg-muted/30 border border-border/50 rounded-lg outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition-all text-foreground placeholder:text-muted-foreground/40"
+                                                />
+                                                <button
+                                                    onClick={handleReplaceAll}
+                                                    disabled={findMatchCount === 0}
+                                                    className="text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                                                >
+                                                    Replace All
+                                                </button>
+                                            </div>
+                                            {findText && (
+                                                <span className="text-[10px] text-muted-foreground/60">
+                                                    {findMatchCount} match{findMatchCount !== 1 ? 'es' : ''} found
+                                                </span>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    )}
+
+                    {/* Timing offset */}
+                    {subtitles.length > 0 && (
+                        <div className="px-4 py-2 border-t border-border/30">
+                            <div className="flex items-center gap-2">
+                                <Clock className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                                <span className="text-[10px] text-muted-foreground/50 shrink-0">Offset</span>
+                                <div className="flex gap-1 flex-1 justify-end">
+                                    {[
+                                        { label: "-1s", value: -1000 },
+                                        { label: "-0.5s", value: -500 },
+                                        { label: "-0.1s", value: -100 },
+                                        { label: "+0.1s", value: 100 },
+                                        { label: "+0.5s", value: 500 },
+                                        { label: "+1s", value: 1000 },
+                                    ].map((opt) => (
+                                        <motion.button
+                                            key={opt.label}
+                                            onClick={() => shiftAllTimings(opt.value)}
+                                            whileTap={{ scale: 0.95 }}
+                                            className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-muted/30 transition-all"
+                                        >
+                                            {opt.label}
+                                        </motion.button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}
