@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { jobId, srtContent, targetHeight, isSample, blobUrl } = body;
+        const { jobId, srtContent, targetHeight, aspectRatio, isSample, blobUrl } = body;
 
         if (!jobId || !/^[a-zA-Z0-9-]+$/.test(jobId)) {
             return NextResponse.json({ error: 'Invalid or missing jobId' }, { status: 400 });
@@ -102,8 +102,9 @@ export async function POST(req: NextRequest) {
             try {
                 await sendEvent({ stage: 'preparing', progress: 0 });
 
-                const enhanceOpts: { targetHeight?: number; fontsDir?: string } = { fontsDir };
+                const enhanceOpts: { targetHeight?: number; fontsDir?: string; aspectRatio?: string } = { fontsDir };
                 if (targetHeight) enhanceOpts.targetHeight = Number(targetHeight);
+                if (aspectRatio) enhanceOpts.aspectRatio = String(aspectRatio);
 
                 console.log(`[burn] Starting burn for ${jobId}...${targetHeight ? ` (upscale to ${targetHeight}p)` : ''}`);
 
