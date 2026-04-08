@@ -27,6 +27,27 @@ export async function extractAudio(videoPath: string, audioPath: string): Promis
     });
 }
 
+export async function getMediaDurationSeconds(mediaPath: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+        if (!fs.existsSync(mediaPath)) {
+            return reject(new Error('Media file not found. It may have expired.'));
+        }
+
+        ffmpeg.ffprobe(mediaPath, (err, metadata) => {
+            if (err) {
+                return reject(err);
+            }
+
+            const duration = metadata?.format?.duration;
+            if (typeof duration !== 'number' || !isFinite(duration) || duration <= 0) {
+                return reject(new Error('Unable to determine media duration.'));
+            }
+
+            resolve(duration);
+        });
+    });
+}
+
 export async function burnSubtitles(
     videoPath: string,
     srtPath: string,

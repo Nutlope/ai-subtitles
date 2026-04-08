@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractAudio } from '@/lib/video-utils';
+import { extractAudio, getMediaDurationSeconds } from '@/lib/video-utils';
 import { rateLimit } from '@/lib/rate-limit';
 import { ensureLocalFile } from '@/lib/blob-utils';
+import { MAX_FREE_RUN_DURATION_LABEL, MAX_FREE_RUN_DURATION_SECONDS } from '@/lib/limits';
 import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest) {
 
         const body = await req.json();
         const { jobId, apiKey, blobUrl } = body;
+        const hasUserApiKey = typeof apiKey === 'string' && apiKey.trim().length > 0;
 
         const finalApiKey = apiKey || process.env.TOGETHER_API_KEY;
 
@@ -66,6 +68,20 @@ export async function POST(req: NextRequest) {
         } else {
             // Audio already exists (MP3 upload), skip extraction
             console.log(`Audio file already exists for ${jobId}, skipping extraction`);
+        }
+
+        if (!hasUserApiKey) {
+            const mediaPathForDuration = fs.existsSync(videoPath) ? videoPath : audioPath;
+            const mediaDurationSeconds = await getMediaDurationSeconds(mediaPathForDuration);
+
+            if (mediaDurationSeconds > MAX_FREE_RUN_DURATION_SECONDS) {
+                return NextResponse.json(
+                    {
+                        error: `Free mode supports media up to ${MAX_FREE_RUN_DURATION_LABEL}. Add your Together AI API key to process longer files.`,
+                    },
+                    { status: 403 }
+                );
+            }
         }
 
         // 2. Transcribe via Together AI (Whisper large-v3)
