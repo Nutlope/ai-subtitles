@@ -1,0 +1,8 @@
+packages:
+  - "."
+onlyBuiltDependencies:
+  - "@ffmpeg-installer/darwin-arm64"
+  - "unrs-resolver"
+allowBuilds:
+  "@ffmpeg-installer/darwin-arm64": true
+  "unrs-resolver": true
