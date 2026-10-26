@@ -286,7 +286,7 @@ export default function SubStudioApp() {
                     {/* Separator + Together AI logo */}
                     <div className="flex items-center gap-3 pl-3 border-l border-border/50">
                         <a
-                            href="https://together.ai"
+                            href="https://togetherai.link/?utm_source=ai-subtitles&utm_medium=referral&utm_campaign=example-app"
                             target="_blank"
                             rel="noreferrer"
                             className="hover:opacity-80 transition-opacity"
