@@ -1,12 +1,12 @@
 # [SubStudio](https://substudio.vercel.app) — generate perfect subtitles with AI
 
-Upload a video or paste a direct media link to instantly create accurate, timed subtitles. Edit, style, and export captions for any platform. Powered by [Together AI](https://together.ai)
+Upload a video or paste a direct media link to instantly create accurate, timed subtitles. Edit, style, and export captions for any platform. Powered by [Together AI](https://togetherai.link/?utm_source=ai-subtitles&utm_medium=referral&utm_campaign=example-app)
 
 [![SubStudio](./public/sub-studio-OG.png)](https://substudio.vercel.app)
 
 ## How it works
 
-SubStudio uses [Together AI's](https://together.ai) Whisper Large v3 model to transcribe your video with word-level timestamps. It automatically merges short intervals into readable subtitle blocks, then lets you preview and style them in real-time with 6 preset styles.
+SubStudio uses [Together AI's](https://togetherai.link/?utm_source=ai-subtitles&utm_medium=referral&utm_campaign=example-app) Whisper Large v3 model to transcribe your video with word-level timestamps. It automatically merges short intervals into readable subtitle blocks, then lets you preview and style them in real-time with 6 preset styles.
 
 1. **Upload** a video file or paste a direct media link
 2. **Transcribe** — audio is extracted and sent to Together AI's Whisper endpoint for fast, accurate transcription
@@ -62,7 +62,7 @@ Deploy your own instance using [Vercel](https://vercel.com):
 ## Tech stack
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
-- **AI**: [Together AI](https://together.ai) — Whisper Large v3 for transcription
+- **AI**: [Together AI](https://togetherai.link/?utm_source=ai-subtitles&utm_medium=referral&utm_campaign=example-app) — Whisper Large v3 for transcription
 - **Animations**: [Framer Motion](https://www.framer.com/motion/)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 - **Video Processing**: FFmpeg (via `fluent-ffmpeg`)

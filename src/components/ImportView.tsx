@@ -494,7 +494,7 @@ export default function ImportView({ onNext, setVideoFile, setMediaUrl, setIsSam
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         {/* Left — Powered by Together AI */}
                         <a
-                            href="https://together.ai"
+                            href="https://togetherai.link/?utm_source=ai-subtitles&utm_medium=referral&utm_campaign=example-app"
                             target="_blank"
                             rel="noreferrer"
                             className="flex items-center gap-2.5 text-muted-foreground hover:text-foreground transition-colors group"
